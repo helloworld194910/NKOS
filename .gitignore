@@ -1,0 +1,60 @@
+# ---- 操作系统 ----
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# ---- 编辑器 / IDE ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.iml
+
+# ---- 日志 ----
+*.log
+logs/
+*.out
+
+# ---- 环境 / 密钥 ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---- 构建 / 依赖 ----
+node_modules/
+dist/
+build/
+target/
+out/
+__pycache__/
+*.pyc
+*.pyo
+*.class
+*.jar
+*.war
+vendor/
+
+# ---- 临时文件 ----
+*.tmp
+*.temp
+*.bak
+*.cache
+.DS_Store
