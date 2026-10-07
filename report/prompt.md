@@ -142,6 +142,6 @@
 输出：按"可能原因—诊断命令—根据结果采取的下一步"的顺序给出排查路径。
 ```
 
-**人工核对依据：** `ls -la`、`find`、`chown`/`chmod` 等命令的真实输出；修复后重新执行 `riscv64-unknown-elf-gcc -v`、`curl -I https://www.baidu.com` 确认问题解决，而非仅凭 AI 的解释判断。
+**人工核对依据：** `ls -la`、`find`、`chown`/`chmod` 等命令的真实输出；修复后重新执行 `riscv64-unknown-elf-gcc -v`、`curl -I https://www.baidu.com` 确认问题解决，而并非仅凭 AI 的解释判断。
 
 ---
