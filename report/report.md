@@ -48,7 +48,7 @@
 
 | 成员 | AI 编程工具 | 底层模型 | 备注 |
 |------|------------|---------|------|
-| 2411824-于蕾 | DeepSeek-V4-Flash | DeepSeek-V4-Flash | 协助阅读实验文档，分析整体流程和逻辑线 |
+| 2411824-于蕾 | DeepSeek | DeepSeek-V4-Flash | 协助阅读实验文档，分析整体流程和逻辑线 |
 | 2412790-杨茜茹 | Claude（claude.ai 网页对话） | Claude Sonnet 5 | 协助阅读 entry.S、链接脚本源码，梳理内核启动流程；WSL/QEMU 环境搭建排错 |
 | 2413921-程子涵 | ChatGPT | GPT-6 | 协助阅读实验文档，分析问题 |
 
@@ -284,8 +284,6 @@ kern_init → cprintf → vcprintf → vprintfmt → cputch
 ### 对操作系统的理解
 
 #### 本实验知识点与 OS 原理的对应关系
-
-**程子涵、杨茜茹：**
 
 | 本实验中的知识点 | 对应的 OS 原理及关系、差异 |
 |---|---|
