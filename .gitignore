@@ -58,3 +58,5 @@ vendor/
 *.bak
 *.cache
 .DS_Store
+/code/bin/
+/code/obj/
