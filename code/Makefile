@@ -34,6 +34,9 @@ CFLAGS  := -mcmodel=medany -std=gnu99 -Wno-unused -Werror
 CFLAGS	+= -fno-builtin -Wall -O2 -nostdinc $(DEFS)
 CFLAGS	+= -fno-stack-protector -ffunction-sections -fdata-sections
 CFLAGS	+= -g
+ifeq ($(BUDDY),1)
+CFLAGS += -DLAB2_BUDDY
+endif
 CFLAGS2 = $(CFLAGS) -D ucore_test
 CTYPE	:= c S
 LD      := $(GCCPREFIX)ld
@@ -144,6 +147,7 @@ $(call create_target,ucore.img)
 $(call finish_all)
 
 IGNORE_ALLDEPS	= clean \
+				  buddy-host-test \
 				  dist-clean \
 				  grade \
 				  touch \
@@ -238,3 +242,28 @@ tags:
 	$(V)find . -type f -name "*.[chS]" >cscope.files
 	$(V)cscope -bq 
 	$(V)ctags -L cscope.files
+
+# Native host tests: compile the real allocator, separate from RISC-V objects.
+BUDDY_HOST_DIR := $(OBJDIR)/buddy-host
+BUDDY_HOST_FLAGS := -std=gnu99 -Wall -Wextra -Werror -O2 -fno-builtin
+BUDDY_HOST_INCLUDES := -nostdinc -Ilibs -Ikern/mm -Ikern/debug
+BUDDY_HOST_HEADERS := $(wildcard libs/*.h kern/mm/*.h kern/debug/*.h)
+
+$(BUDDY_HOST_DIR)/:
+	$(V)$(MKDIR) $@
+
+$(BUDDY_HOST_DIR)/allocator.o: kern/mm/buddy_pmm.c $(BUDDY_HOST_HEADERS) | $(BUDDY_HOST_DIR)/
+	$(HOSTCC) $(BUDDY_HOST_FLAGS) $(BUDDY_HOST_INCLUDES) -c $< -o $@
+
+$(BUDDY_HOST_DIR)/cases.o: tools/buddy_host/cases.c $(BUDDY_HOST_HEADERS) | $(BUDDY_HOST_DIR)/
+	$(HOSTCC) $(BUDDY_HOST_FLAGS) $(BUDDY_HOST_INCLUDES) -c $< -o $@
+
+$(BUDDY_HOST_DIR)/platform.o: tools/buddy_host/platform.c | $(BUDDY_HOST_DIR)/
+	$(HOSTCC) $(BUDDY_HOST_FLAGS) -c $< -o $@
+
+$(BUDDY_HOST_DIR)/buddy-test: $(BUDDY_HOST_DIR)/allocator.o $(BUDDY_HOST_DIR)/cases.o $(BUDDY_HOST_DIR)/platform.o
+	$(HOSTCC) $^ -o $@
+
+.PHONY: buddy-host-test
+buddy-host-test: $(BUDDY_HOST_DIR)/buddy-test
+	python3 tools/buddy_host/run.py $(BUDDY_HOST_DIR)/buddy-test
