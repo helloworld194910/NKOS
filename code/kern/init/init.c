@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <dtb.h>
+#include <slub.h>
 
 int kern_init(void) __attribute__((noreturn));
 void grade_backtrace(void);
@@ -37,7 +38,16 @@ int kern_init(void) {
     print_kerninfo();
 
     // grade_backtrace();
+#ifdef MEMBER_C_MMU_PROBE
+    extern void mmu_probe(void);
+    mmu_probe();
+#endif
     pmm_init();  // init physical memory management
+#ifdef MEMBER_C_SLUB_CHECK
+    slub_init();
+    slub_check();
+    pmm_manager->check(); /* Check the backing allocator again after reclamation. */
+#endif
 
     /* do nothing */
     while (1)
