@@ -1,0 +1,34 @@
+gcc -std=gnu99 -Wall -Wextra -Werror -O2 -fno-builtin -nostdinc -Ilibs -Ikern/mm -Ikern/debug -c kern/mm/buddy_pmm.c -o obj/buddy-host/allocator.o
+gcc -std=gnu99 -Wall -Wextra -Werror -O2 -fno-builtin -nostdinc -Ilibs -Ikern/mm -Ikern/debug -c tools/buddy_host/cases.c -o obj/buddy-host/cases.o
+gcc -std=gnu99 -Wall -Wextra -Werror -O2 -fno-builtin -c tools/buddy_host/platform.c -o obj/buddy-host/platform.o
+gcc obj/buddy-host/allocator.o obj/buddy-host/cases.o obj/buddy-host/platform.o -o obj/buddy-host/buddy-test
+python3 tools/buddy_host/run.py obj/buddy-host/buddy-test
+PASS | Case 1 | empty
+PASS | Case 2 | orders
+PASS | Case 3 | rounding
+PASS | Case 4 | split
+PASS | Case 5 | merge
+PASS | Case 6 | nonpartners
+PASS | Case 7 | irregular
+PASS | Case 8 | registration
+PASS | Case 9 | failure
+PASS | Case 10 | interleave
+PASS | Case 11 | alloc_zero
+PASS | Case 11 | free_zero
+PASS | Case 11 | free_null
+PASS | Case 11 | free_outside
+PASS | Case 11 | free_unaligned
+PASS | Case 11 | free_interior
+PASS | Case 11 | free_length
+PASS | Case 11 | free_rounded
+PASS | Case 11 | free_twice
+PASS | Case 11 | free_reserved
+PASS | Case 11 | free_unregistered
+PASS | Case 12 | register_zero
+PASS | Case 12 | register_start
+PASS | Case 12 | register_end
+PASS | Case 12 | register_nonreserved
+PASS | Case 12 | register_twice
+PASS | Case 12 | register_overlap
+PASS | Case 12 | capacity
+RESULT: 28/28 passed; logs: /mnt/c/Users/czh99/Desktop/OSlab2/labcodes/lab2/obj/buddy-host/logs

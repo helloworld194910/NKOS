@@ -34,6 +34,15 @@ CFLAGS  := -mcmodel=medany -std=gnu99 -Wno-unused -Werror
 CFLAGS	+= -fno-builtin -Wall -O2 -nostdinc $(DEFS)
 CFLAGS	+= -fno-stack-protector -ffunction-sections -fdata-sections
 CFLAGS	+= -g
+# Modern RISC-V toolchains require explicit CSR/fence extensions.
+ARCH_FLAGS ?= -march=rv64imac_zicsr_zifencei -mabi=lp64
+CFLAGS += $(ARCH_FLAGS)
+ifeq ($(SLUB_CHECK),1)
+CFLAGS += -DMEMBER_C_SLUB_CHECK
+endif
+ifeq ($(MMU_PROBE),1)
+CFLAGS += -DMEMBER_C_MMU_PROBE
+endif
 ifeq ($(BUDDY),1)
 CFLAGS += -DLAB2_BUDDY
 endif
@@ -146,7 +155,8 @@ $(call create_target,ucore.img)
 
 $(call finish_all)
 
-IGNORE_ALLDEPS	= clean \
+IGNORE_ALLDEPS	= member-c-host \
+                  clean \
 				  buddy-host-test \
 				  dist-clean \
 				  grade \
@@ -224,7 +234,7 @@ print-%:
 .PHONY: clean dist-clean handin packall tags
 clean:
 	$(V)$(RM) $(GRADE_GDB_IN) $(GRADE_QEMU_OUT) cscope* tags
-	-$(RM) -r $(OBJDIR) $(BINDIR)
+	-$(RM) -r $(OBJDIR) $(BINDIR) build
 
 dist-clean: clean
 	-$(RM) $(HANDIN)
@@ -267,3 +277,7 @@ $(BUDDY_HOST_DIR)/buddy-test: $(BUDDY_HOST_DIR)/allocator.o $(BUDDY_HOST_DIR)/ca
 .PHONY: buddy-host-test
 buddy-host-test: $(BUDDY_HOST_DIR)/buddy-test
 	python3 tools/buddy_host/run.py $(BUDDY_HOST_DIR)/buddy-test
+
+.PHONY: member-c-host
+member-c-host:
+	sh tools/member_c/run_host.sh

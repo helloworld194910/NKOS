@@ -1,0 +1,50 @@
+[
+  {
+    "file": "01-slub-host.png",
+    "original_filename": "屏幕截图 2026-10-17 190706.png",
+    "sha256": "9c3f303fe67e9b2245cbc9ebc76326a77366f1bb2369003ee6ccfde2a11a5a54",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  },
+  {
+    "file": "02-bare-store.png",
+    "original_filename": "屏幕截图 2026-10-17 191611.png",
+    "sha256": "6d61e29d479ce376ecd3814090a113397aa0789898a4c6f9e2bd1cb9a041e145",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  },
+  {
+    "file": "03-tlb-miss.png",
+    "original_filename": "屏幕截图 2026-10-17 192029.png",
+    "sha256": "415129c9a41c1db85eb38ddb6e3ff90f44af23742541ff3cf0625098922ae6a2",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  },
+  {
+    "file": "04-page-walk.png",
+    "original_filename": "屏幕截图 2026-10-17 192401.png",
+    "sha256": "a4e20b3920c4104c70a4038f3fe2ea02840d3dded3a9f2b706f2f9b2db5c92b5",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  },
+  {
+    "file": "05-page-result.png",
+    "original_filename": "屏幕截图 2026-10-17 192422.png",
+    "sha256": "5ddc9cefbc0b198fa2a2e29e82b2e2d372a2e67fcc788cbbfc8c1f021a00fc35",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  },
+  {
+    "file": "06-tlb-filled.png",
+    "original_filename": "屏幕截图 2026-10-17 192714.png",
+    "sha256": "df0ed95dca1527b6809a9032d6ae1e5490915a993f30ebb22404907fa3f74cb2",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  },
+  {
+    "file": "07-tlb-second-load.png",
+    "original_filename": "屏幕截图 2026-10-17 192954.png",
+    "sha256": "877a378649370791b437cb677959c00720f4ebf08fd8bd2fdd240e6a17dd8f67",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  },
+  {
+    "file": "08-guest-two-loads.png",
+    "original_filename": "屏幕截图 2026-10-17 193017.png",
+    "sha256": "41ced5243fb3d0525ca3615ec2a5a0a460d1fd2919fd334f11f7657f472f85f0",
+    "scope": "2026-10-17 First-Fit isolated kernel / host SLUB model"
+  }
+]

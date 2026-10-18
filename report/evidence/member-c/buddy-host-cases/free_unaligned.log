@@ -1,0 +1,3 @@
+exit_code=86
+EXPECTED_OPERATION
+BUDDY_PANIC|kern/mm/buddy_pmm.c|48|assertion failed: offset % sizeof(struct Page) == 0

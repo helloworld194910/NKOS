@@ -1,0 +1,40 @@
+The target architecture is set to "riscv:rv64".
+0x0000000000001000 in ?? ()
+Breakpoint 1 at 0x80200000
+
+Breakpoint 1, 0x0000000080200000 in ?? ()
+BARE ENTRY: startup stores precede csrw satp
+$1 = 0x0
+=> 0x80200000:	auipc	t0,0x7
+   0x80200004:	mv	t0,t0
+   0x80200008:	sd	a0,0(t0)
+   0x8020000c:	auipc	t0,0x7
+   0x80200010:	addi	t0,t0,-4
+   0x80200014:	sd	a1,0(t0)
+   0x80200018:	lui	t0,0xc0206
+   0x8020001c:	addiw	t1,zero,-3
+   0x80200020:	slli	t1,t1,0x1e
+   0x80200022:	sub	t0,t0,t1
+Breakpoint 2 at 0xffffffffc0200fcc: file kern/mm/mmu_probe.c, line 14.
+
+Breakpoint 2, 0xffffffffc0200fcc in mmu_probe () at kern/mm/mmu_probe.c:14
+14	    asm volatile("sfence.vma\n"
+FIRST LOAD
+$2 = 0xffffffffc0200fcc
+$3 = 0x8000000000080206
+$4 = 0xffffffffc0208000
+=> 0xffffffffc0200fcc <mmu_probe+40>:	ld	a3,0(a5)
+0xffffffffc0200fce	14	    asm volatile("sfence.vma\n"
+SECOND LOAD
+=> 0xffffffffc0200fce <mmu_probe+42>:	ld	a4,0(a5)
+0xffffffffc0200fd0	14	    asm volatile("sfence.vma\n"
+AFTER BOTH LOADS
+t0             0x0	0
+t1             0xffffffffc0205fa8	-1071620184
+t2             0xffffffff80000000	-2147483648
+a0             0x35	53
+a1             0x0	0
+a2             0x0	0
+a3             0x1122334455667788	1234605616436508552
+a4             0x1122334455667788	1234605616436508552
+a5             0xffffffffc0208000	-1071611904

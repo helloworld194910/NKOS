@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-10-18T14:05:50.212636+08:00",
+  "host": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "os_release": "PRETTY_NAME=\"Ubuntu 26.04.1 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04.1 LTS (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+  "qemu_executable": "/home/czh99/oslab2-member-c/qemu-4.1.1/riscv64-softmmu/qemu-system-riscv64",
+  "qemu_source": "/home/czh99/oslab2-member-c/qemu-4.1.1",
+  "qemu_version": "QEMU emulator version 4.1.1\nCopyright (c) 2003-2019 Fabrice Bellard and the QEMU Project developers",
+  "configure": "./configure --target-list=riscv64-softmmu --enable-debug --disable-werror --disable-docs --python=python3",
+  "compiler": "riscv64-unknown-elf-gcc (14.2.0+19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+  "host_gdb": "GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+  "guest_gdb": "GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+  "qemu_sha256": "f1b708f3d7a7ec60b9f26336d25c7bb858822bb78fe04706ca79c419cc5657a6",
+  "integrated_kernel_sha256": "8659e61035d2460102ec9f5fbe9e4bbff84caa2e9915f98a3156c3726aef7c21",
+  "source_sha256": {
+    "target/riscv/cpu_helper.c": "ec1d32c8d143b4520d712cfdc9c4c07e97f67be0f59397dc1fb2da8b79cb15be",
+    "accel/tcg/cputlb.c": "09b6e4d97009e1530ff0ad931304731781a7e4b3430e9250a5a7a6eeb0fef754",
+    "tcg/i386/tcg-target.inc.c": "27156ef874280d786fa029bdb02aa4d85b37e42d7ba8cfabdc2896bcb8680956",
+    "include/exec/cpu_ldst.h": "ac5343be9c035f1f3a615fe553b8359b0fc08e6099e24865d2900a09d9a7bee2",
+    "include/exec/cpu-defs.h": "91dedf4803be9426512c76b0c9bd584579ed55283d269747da6608d791248a26"
+  },
+  "member_c_sha256": {
+    "slub.c": "37ad0dea6644b5a3c799264c19cd0650875288d0473897ffac2c2c00c2b27994",
+    "slub.h": "334afbdfc1c04a44a78e48bfba42a7a531523f2a9b642da32b7a14c474f48e3f",
+    "slub_check.c": "a565517af3e891b50211ba68d8023423c57deb8efb265f52469407abf316bba0",
+    "mmu_probe.c": "4082a35853b1aa182a1ea4b07753bdb9cbebbd705f7f7cae52017a4df5546452"
+  }
+}

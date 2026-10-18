@@ -1,0 +1,155 @@
+Breakpoint 1 at 0x3ce35a: file /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c, line 438.
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+[New Thread 0x7ffff79436c0 (LWP 730)]
+[New Thread 0x7ffff4fff6c0 (LWP 731)]
+
+OpenSBI v0.4 (Jul  2 2019 11:53:53)
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name          : QEMU Virt Machine
+Platform HART Features : RV64ACDFIMSU
+Platform Max HARTs     : 8
+Current Hart           : 0
+Firmware Base          : 0x80000000
+Firmware Size          : 112 KB
+Runtime SBI Version    : 0.1
+
+PMP0: 0x0000000080000000-0x000000008001ffff (A)
+PMP1: 0x0000000000000000-0xffffffffffffffff (A,R,W,X)
+DTB Init
+HartID: 0
+DTB Address: 0x82200000
+Physical Memory from DTB:
+  Base: 0x0000000080000000
+  Size: 0x0000000008000000 (128 MB)
+  End:  0x0000000087ffffff
+DTB init completed
+(THU.CST) os is loading ...
+Special kernel symbols:
+  entry  0xffffffffc02000d6 (virtual)
+  etext  0xffffffffc0202232 (virtual)
+  edata  0xffffffffc0208010 (virtual)
+  end    0xffffffffc0208ad8 (virtual)
+Kernel executable memory footprint: 35KB
+MMU probe: VA=ffffffffc0208000 satp=8000000000080206
+[Switching to Thread 0x7ffff4fff6c0 (LWP 731)]
+
+Thread 3 "qemu-system-ris" hit Breakpoint 1, riscv_cpu_tlb_fill (cs=0x55555650c120, address=18446744072637939712, size=8, access_type=MMU_DATA_LOAD, mmu_idx=1, probe=false, retaddr=140737303806268) at /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c:438
+438	{
+
+STEP: real data-load refill
+cs = 0x55555650c120
+address = 18446744072637939712
+size = 8
+access_type = MMU_DATA_LOAD
+mmu_idx = 1
+probe = false
+retaddr = 140737303806268
+#0  riscv_cpu_tlb_fill (cs=0x55555650c120, address=18446744072637939712, size=8, access_type=MMU_DATA_LOAD, mmu_idx=1, probe=false, retaddr=140737303806268) at /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c:438
+#1  0x0000555555867918 in tlb_fill (cpu=0x55555650c120, addr=18446744072637939712, size=8, access_type=MMU_DATA_LOAD, mmu_idx=1, retaddr=140737303806268) at /home/czh99/oslab2-member-c/qemu-4.1.1/accel/tcg/cputlb.c:878
+#2  0x000055555586ac6f in load_helper (env=0x555556514b30, addr=18446744072637939712, oi=49, retaddr=140737303806268, size=8, big_endian=false, code_read=false, full_load=0x55555586aa2f <helper_le_ldq_mmu>) at /home/czh99/oslab2-member-c/qemu-4.1.1/accel/tcg/cputlb.c:1274
+#3  helper_le_ldq_mmu (env=0x555556514b30, addr=18446744072637939712, oi=49, retaddr=140737303806268) at /home/czh99/oslab2-member-c/qemu-4.1.1/accel/tcg/cputlb.c:1449
+#4  0x00007ffff500017a in code_gen_buffer ()
+#5  0x000055555588c510 in cpu_tb_exec (cpu=0x55555650c120, itb=0x7ffff5000040 <code_gen_buffer+19>) at /home/czh99/oslab2-member-c/qemu-4.1.1/accel/tcg/cpu-exec.c:173
+#6  0x000055555588d347 in cpu_loop_exec_tb (cpu=0x55555650c120, tb=0x7ffff5000040 <code_gen_buffer+19>, last_tb=0x7ffff4ffe958, tb_exit=0x7ffff4ffe950) at /home/czh99/oslab2-member-c/qemu-4.1.1/accel/tcg/cpu-exec.c:621
+Breakpoint 2 at 0x55555592170c: file /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c, line 158.
+
+Thread 3 "qemu-system-ris" hit Breakpoint 2, get_physical_address (env=0x555556514b30, physical=0x7ffff4ffe270, prot=0x7ffff4ffe264, addr=18446744072637939712, access_type=0, mmu_idx=1) at /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c:158
+158	{
+env = 0x555556514b30
+physical = 0x7ffff4ffe270
+prot = 0x7ffff4ffe264
+addr = 18446744072637939712
+access_type = 0
+mmu_idx = 1
+223	    CPUState *cs = env_cpu(env);
+mode = 1
+base = 2149605376
+levels = 3
+ptidxbits = 9
+ptesize = 8
+vm = 8
+sum = 0
+mxr = 0
+__func__ = "get_physical_address"
+cs = 0x555555e18bb9
+va_bits = 32767
+mask = 93825008081152
+masked_msbs = 140737303798320
+ptshift = 0
+i = 1
+Breakpoint 3 at 0x555555921c4d: file /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c, line 254.
+
+Thread 3 "qemu-system-ris" hit Breakpoint 3, get_physical_address (env=0x555556514b30, physical=0x7ffff4ffe270, prot=0x7ffff4ffe264, addr=18446744072637939712, access_type=0, mmu_idx=1) at /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c:254
+254	        target_ulong ppn = pte >> PTE_PPN_SHIFT;
+idx = 511
+pte_addr = 2149609464
+pte = 536871119
+ppn = 93825001426192
+mode = 1
+base = 2149605376
+levels = 3
+ptidxbits = 9
+ptesize = 8
+vm = 8
+sum = 0
+mxr = 0
+__func__ = "get_physical_address"
+cs = 0x55555650c120
+va_bits = 39
+mask = 67108863
+masked_msbs = 67108863
+ptshift = 18
+i = 0
+256	        if (!(pte & PTE_V)) {
+259	        } else if (!(pte & (PTE_R | PTE_W | PTE_X))) {
+262	        } else if ((pte & (PTE_R | PTE_W | PTE_X)) == PTE_W) {
+265	        } else if ((pte & (PTE_R | PTE_W | PTE_X)) == (PTE_W | PTE_X)) {
+268	        } else if ((pte & PTE_U) && ((mode != PRV_U) &&
+idx = 511
+pte_addr = 2149609464
+pte = 536871119
+ppn = 524288
+mode = 1
+base = 2149605376
+levels = 3
+ptidxbits = 9
+ptesize = 8
+vm = 8
+sum = 0
+mxr = 0
+__func__ = "get_physical_address"
+cs = 0x55555650c120
+va_bits = 39
+mask = 67108863
+masked_msbs = 67108863
+ptshift = 18
+i = 0
+0x000055555592241e in riscv_cpu_tlb_fill (cs=0x55555650c120, address=18446744072637939712, size=8, access_type=MMU_DATA_LOAD, mmu_idx=1, probe=false, retaddr=140737303806268) at /home/czh99/oslab2-member-c/qemu-4.1.1/target/riscv/cpu_helper.c:451
+451	    ret = get_physical_address(env, &pa, &prot, address, access_type, mmu_idx);
+Value returned is $1 = 0
+cpu = 0x55555650c120
+__func__ = "riscv_cpu_tlb_fill"
+env = 0x555556514b30
+pa = 2149613568
+prot = 7
+pmp_violation = false
+ret = 1
+mode = 1
+
+STEP: translation result before TLB insertion
+$2 = 0x80208000
+$3 = 7

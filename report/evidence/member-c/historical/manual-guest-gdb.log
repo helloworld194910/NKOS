@@ -1,0 +1,22 @@
+Remote debugging using localhost:12359
+0x0000000000001000 in ?? ()
+Breakpoint 1 at 0xffffffffc02010f4: file kern/mm/mmu_probe.c, line 13.
+Continuing.
+
+Breakpoint 1, 0xffffffffc02010f4 in mmu_probe () at kern/mm/mmu_probe.c:13
+13	    asm volatile("sfence.vma\n"
+$1 = 0xffffffffc02010f4
+$2 = 0x8000000000080206
+$3 = 0xffffffffc0208000
+=> 0xffffffffc02010f4 <mmu_probe+40>:	ld	a3,0(a5)
+   0xffffffffc02010f6 <mmu_probe+42>:	ld	a4,0(a5)
+0xffffffffc02010f6	13	    asm volatile("sfence.vma\n"
+a3             0x1122334455667788	1234605616436508552
+a5             0xffffffffc0208000	-1071611904
+=> 0xffffffffc02010f6 <mmu_probe+42>:	ld	a4,0(a5)
+0xffffffffc02010f8	13	    asm volatile("sfence.vma\n"
+a3             0x1122334455667788	1234605616436508552
+a4             0x1122334455667788	1234605616436508552
+a5             0xffffffffc0208000	-1071611904
+$4 = 0xffffffffc02010f8
+Ending remote debugging.
