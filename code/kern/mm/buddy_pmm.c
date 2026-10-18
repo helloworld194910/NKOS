@@ -2,7 +2,7 @@
 #include <list.h>
 #include <stdio.h>
 
-/* lab2 Buddy System. Author student ID must be added before submission. */
+/* lab2 Buddy System 2412790 杨茜茹 */
 /* Private BSS storage: no dependency on the allocator being initialized. */
 #define BUDDY_CAPACITY ((PHYSICAL_MEMORY_END - DRAM_BASE) / PGSIZE)
 #define BUDDY_ORDER_SLOTS (sizeof(size_t) * 8)
