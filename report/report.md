@@ -18,7 +18,7 @@
 | 2412790 杨茜茹（B） | Buddy 设计、实现与测试 | Buddy 设计、实现与测试；代码集成 |
 | 2413921 程子涵（C） | QEMU 地址翻译/TLB 六项调试、SLUB 实现与测试 | 本报告、调试证据及 lab2-cheng 分支交付 |
 
-本报告按照仓库规定的“实验基本信息—实验目的—实验环境—整体逻辑—实验内容与实现—测试与验证—总结”格式编排。
+本报告按照仓库规定的“实验基本信息—实验目的—实验环境—整体逻辑—实验内容与实现—测试与验证—总结”格式编排。本章所选截图为成员 C 保存的 10 月 17 日早期调试画面，用于展示当时的观察过程；最终 Best-Fit/Buddy 集成结果以正文记录的 10 月 18 日运行结果为准。本章所选截图为成员 C 保存的 10 月 17 日早期调试画面，用于展示当时的观察过程；最终 Best-Fit/Buddy 集成结果以正文记录的 10 月 18 日运行结果为准。
 
 
 
@@ -142,6 +142,10 @@ size_t slub_owned_pages(void);
 
 内核接口为 `void slub_check(void)`，实现位于 `code/kern/mm/slub_check.c`。宿主 `code/tools/member_c/host_test.c` 提供 main、PMM 模型、cprintf 和 __panic 的适配定义，直接链接真实 SLUB；这些定义不进入内核链接。run_host.sh 开启 ASan/UBSan，run_qemu.py 检查真实管理器与 PMM/SLUB 标记。
 
+![成员 C 早期宿主 SLUB 测试](images/01-slub-host.png)
+
+图 1：10 月 17 日早期宿主 SLUB 测试画面，显示边界、复用、回收、PMM 失败和碎片化用例通过。该画面来自隔离 First-Fit 阶段，最终管理器集成结果见第五章。
+
 ##### 实现规格
 
 全文见 [综合提示词任务二](prompt.md#task-2)。按公开 API 独立验证类别、16 字节对齐、不重叠、逐字节内容、幂等初始化、槽复用、320 对象跨页、四轮回收、异常输入、底层失败和碎片化；分别规定内核和宿主 Case。禁止读取私有 bitmap 或改算法/原测试凑通过。
@@ -174,6 +178,10 @@ size_t slub_owned_pages(void);
 ```
 
 双 GDB 调试观察到的调用栈显示：`load_helper` 在 `accel/tcg/cputlb.c:1248` 附近计算 mmu_idx、索引和按访问类型选择的 tag，1271 行附近判断主表是否命中，失败后检查 victim 表，再调用 tlb_fill。不能把所有读取都画成必然调用 C helper：正常 TCG 快路径直接执行生成的宿主指令，参见下文“调试任务三”。
+
+![首次数据读取的慢路径与无效 TLB tag](images/03-tlb-miss.png)
+
+图 2：10 月 17 日早期调试画面显示目标数据读取首次进入 `tlb_fill`，索引为 8，目标 tag 尚无效。它记录的是当时的隔离运行过程。
 
 `target/riscv/cpu_helper.c:155` 附近的 `get_physical_address` 依次处理以下分支：
 
@@ -229,6 +237,10 @@ PTE PPN  = 0x200000cf >> 10 = 0x80000
 PTE flags = 0xcf = V | R | W | X | A | D
 ```
 
+![根页表索引与 PTE 地址](images/04-page-walk.png)
+
+图 3：早期单步画面中 `levels=3`、`i=0`、`ptshift=18`，根索引为 `0x1ff`，PTE 地址为 `0x80206ff8`。
+
 根级 PTE 已含 R/X，是 1 GiB 超级页叶子，不是下级页表指针。PPN 的低 18 位为 0，满足超级页对齐；因此循环在 i=0 就成功返回，虽然 levels=3，也不会再取 VPN[1]、VPN[0] 对应的页表项。
 
 QEMU 对超级页构造 4 KiB 粒度的结果：
@@ -250,6 +262,10 @@ levels=3，实际 i=0、ptshift=18，根索引为 `0x1ff`，PTE 地址为 `0x802
 
 
 单步后 PPN=`0x80000`，函数成功返回，下一行可见 PA=`0x80208000`、prot=7。上述 PTE 与 PA 数值和手工计算结果一致。
+
+![页表项、PPN 与物理地址结果](images/05-page-result.png)
+
+图 4：早期单步结果显示 PTE=`0x200000cf`、PPN=`0x80000`，函数返回状态为 0、PA=`0x80208000`、prot=7，与手算一致。
 
 ##### 实现规格
 
@@ -281,6 +297,14 @@ QEMU 4.1.1 中可以找到 C 代码：`cputlb.c` 的 `load_helper` 计算索引�
 第一次 ld 的真实调用栈包含 victim 检查后的 tlb_fill，说明本次 victim 也没有提供匹配项。日志只出现一次目标地址的真实数据页表遍历，而客体日志确认两条 ld 都执行结束。
 
 第二次访问不一定再次进入 load_helper，所以只在 C helper 上打断点，不能观察每次命中。x86_64 的 `tcg/i386/tcg-target.inc.c:1699` 中 `tcg_out_tlb_load` 会生成取索引、比较 tag、`jne slow_path` 和加 addend 的宿主机器码。匹配时直接访问 `guest_VA + addend` 对应的宿主 RAM 地址。它缓存的不仅是客体 VA→PA 关系，还包含把访存快速导向宿主内存的资料。两次读取均得到相同数据，目标慢路径只发生一次；该结果与 TCG 快路径源码相符。本次没有测量真实硬件命中耗时。
+
+![第二次加载后的 SoftTLB 与寄存器](images/07-tlb-second-load.png)
+
+图 5：早期调试快照中第二条 `ld` 执行后，目标 tag 仍在槽 8，两个寄存器值均为 `0x1122334455667788`，慢路径计数为 1。
+
+![客体 GDB 的两条 ld 与读取结果](images/08-guest-two-loads.png)
+
+图 6：客体 GDB 显示两条 `ld` 依次完成，a3、a4 读取结果相同。该画面与宿主 TLB 观察相互印证。
 
 自动脚本只把调用者为 `riscv_cpu_tlb_fill` 的 get_physical_address 记为 REAL_WALK，避免把客体 GDB 的 `x`、断点设置或源码读取造成的 `riscv_cpu_get_phys_page_debug` 路径混入。取指使用 addr_code / MMU_INST_FETCH，不能和数据 load 的 addr_read 混淆。
 
@@ -317,6 +341,10 @@ FILL addr=2149609472 pa=2149609472 ret=0 prot=7 access=MMU_DATA_STORE
 ```
 
 即 Bare 数据存储仍通过软件慢路径完成恒等翻译并填入 QEMU SoftTLB，没有访问页表。另有 satp=0 时对 `0x80200000` 的真实取指记录，但数据存储更便于与 Sv39 数据加载比较。
+
+![Bare 模式真实数据存储的恒等翻译](images/02-bare-store.png)
+
+图 7：早期双 GDB 画面显示 satp=0、数据存储 access_type=1，慢路径返回的 PA 与输入地址相同。
 
 真实 RISC-V 在 Bare 模式下对这些访问不做分页地址翻译，但仍受特权、PMP 等物理访问规则约束；硬件是否复用某种内部缓存结构属于微架构选择。QEMU SoftTLB 则是模拟器加速全部被模拟内存访问的软件缓存，即使客体关闭分页，也需要把客体地址导向宿主 RAM、MMIO 或其他 MemoryRegion。因此不能把“QEMU Bare 仍查询 SoftTLB”解释为“硬件 Bare 也必须走分页 TLB”，也不能把软件直接索引、victim 策略或当前容量当成真实 CPU 的结构。
 
@@ -417,7 +445,7 @@ satp=0、access_type=1，调用栈为 store_helper 的慢路径，返回 PA=`0x8
 
 ### 5.3 提交内容
 
-源码位于 `code/`，包括 SLUB、MMU 探针、宿主测试及 QEMU 调试工具。实验报告为本文件，八项任务的综合提示词见 [prompt.md](prompt.md)。本分支只保留源码、报告和提示词；编译产物、运行日志及截图不纳入提交。
+源码位于 `code/`，包括 SLUB、MMU 探针、宿主测试及 QEMU 调试工具。实验报告为本文件，八项任务的综合提示词见 [prompt.md](prompt.md)。本分支保留源码、报告、综合提示词和报告引用的必要截图；编译产物、运行日志及其他截图不纳入提交。
 
 ---
 ## 六、实验总结与收获
