@@ -4,11 +4,11 @@
 
 初始记录日期：2026 年 10 月 17 日。联调更新日期：2026 年 10 月 18 日。
 
-分支交接补充：本章前期开发记录对应下述原本独立的本地仓库。个人远端分支最初以小组 `lab2` 的 `fe29501` 为基础建立，随后接入 A 的 `27dbe9b`，完成初始化、默认 Best-Fit 与 Buddy 的联调。代码在仓库 `code/`，本报告及提示词在 `report/buddy/`；第十一节中的命令从仓库根目录执行。原记录中的 `27461b7`、`876e009`、`fc84bdb` 是原本地仓库提交号，不表示它们已经成为远端分支的祖先。原提示词按实际使用版本保留，不将生成当时的条件改写成现在的状态。最新验证结果见第十一节；C 的 SLUB 和全组最终报告整合仍待交付。
+分支交接补充：本章前期开发记录对应下述原本独立的本地仓库。个人远端分支最初以小组 `lab2` 的 `fe29501` 为基础建立，随后接入 A 的 `27dbe9b`，完成初始化、默认 Best-Fit 与 Buddy 的联调。本轮又接入成员 C 的 `lab2-cheng` 分支并执行回归。代码在仓库 `code/`，本报告及提示词在 `report/buddy/`；第十一、十二节中的命令从仓库根目录执行。原记录中的 `27461b7`、`876e009`、`fc84bdb` 是原本地仓库提交号，不表示它们已经成为远端分支的祖先。原提示词按实际使用版本保留，不将生成当时的条件改写成现在的状态。最新验证结果见第十二节；全组报告整合暂缓，等待 A 的报告。
 
 本章为小组成员 B 负责的 Buddy System 部分，记录需求规格、AI 提示词、模块实现、独立测试及当前验证结果。代码由 Codex 根据明确规格辅助生成，WSL 终端中的编译、测试和 Git 提交由本人执行。两份实际使用的提示词分别保存在同目录的 [Buddy实现提示词.md](Buddy实现提示词.md) 和 [Buddy测试提示词.md](Buddy测试提示词.md)，应与本章一起提交。
 
-截至本次联调更新，默认 Best-Fit 与 Buddy 两种配置均完成干净构建、QEMU 启动及各自检查；集成后的 Buddy 宿主测试 **28/28 通过**，默认配置评分 **20/20**。这些结果覆盖当前 A+B 组合，不包含尚未接入的 C 的 SLUB，也不代表 QEMU 已运行 Buddy 的全部行为测试。
+截至本次联调更新，接入 C 后的 Buddy 宿主测试 **28/28 通过**，SLUB 宿主测试通过，Best-Fit+SLUB、Buddy+SLUB 及 Best-Fit+SLUB+MMU 探针均完成干净构建和 QEMU 运行，默认配置评分 **20/20**。这不代表原评分器覆盖了拓展任务，也不代表本人重做了 C 的 QEMU 源码双 GDB 调试。
 
 ## 一 对实验整体逻辑的理解
 
@@ -331,7 +331,7 @@ AI 助手尝试直接调用 WSL 命令时得到 `Wsl/E_ACCESSDENIED`。文件共
 
 当前实现用逐页状态维护换取可理解性和较强检查能力，代价是静态开销和块范围遍历。可改进为更紧凑的位图或块级元数据，减少分配释放时的逐页重写；动态设置最大阶，支持更大的或多段物理内存；在并发场景加入同步机制；将仅适合初始化阶段的零引用计数检查与一般运行期检查分开。任何改进都需先更新契约和独立测试，不能只根据性能直觉修改。
 
-A 的初始化和 Best-Fit 已接入；`BUDDY=1` 定义 `LAB2_BUDDY` 时选择 Buddy，未定义时选择 Best-Fit。后续收到 C 的 SLUB 后，由 B 继续全组集成与回归，核对 SLUB 使用公共页分配接口且释放长度符合所选管理器契约。
+A 的初始化和 Best-Fit 已接入；`BUDDY=1` 定义 `LAB2_BUDDY` 时选择 Buddy，未定义时选择 Best-Fit。C 的 SLUB 也已接入并完成第十二节所列回归。SLUB 使用公共页分配接口，并保留原始申请页数用于释放，符合 Buddy 的释放契约。
 
 从 `code/` 目录切换配置时，采用干净构建：
 
@@ -344,9 +344,9 @@ make clean
 make qemu
 ```
 
-两种配置的完整构建与 QEMU 启动均已执行，结果见第十一节。原评分器要求默认 Best-Fit，不能在 Buddy 模式下把该名称检查失败当成 Buddy 算法错误。
+上述是接入 C 前使用的命令。接入 C 后，本人旧工具链需额外传入 `ARCH_FLAGS=`，具体命令和结果见第十二节。切换配置前仍应干净构建。原评分器要求默认 Best-Fit，不能在 Buddy 模式下把该名称检查失败当成 Buddy 算法错误。
 
-本人学号注释已补充。收到 C 的成果后仍需重新进行全组回归。公共报告格式由 B 整合，各模块技术问题由原负责人修复后交回复验；本章不代写 A、C 的实现和调试结论。
+本人学号注释已补充。当前已完成接入 C 后的代码回归，公共报告整合按小组安排等待 A 的报告；本轮只更新本人的 Buddy 报告，不代写 A、C 的实现和调试结论。
 
 ## 十一 接入 A 后的实际联调记录
 
@@ -460,7 +460,7 @@ Total Score: 20/20
 
 此评分覆盖原测试中的页初始化和 Best-Fit 检查，不给 Buddy 或 SLUB 打分，不能将 20/20 写成所有拓展任务均已验证。评分过程会清理构建目录，前一步的宿主日志可能随之删除，因此本节按实际终端输出保存结果摘录，不保证 obj 下仍保留每轮日志。
 
-### 11.6 当前交付边界
+### 11.6 接入 A 时的交付边界（历史记录）
 
 | 验证项目 | 实际结果 |
 | --- | --- |
@@ -471,4 +471,113 @@ Total Score: 20/20
 | 合并结果的 Git 提交与推送 | 已完成，提交 `8c4ecf6`，个人分支 `lab2-yang` |
 | C 的 SLUB、全组最终回归和报告整合 | 待对应成果交付 |
 
-上述运行命令和输出由本人在 VS Code WSL 终端执行并反馈，Codex 协助解释输出和整理记录。当前已完成 B 的 Buddy 实现、独立测试和与 A 的内核联调；全组公共收尾仍需等待 C 的技术成果及 A、C 的完整报告。
+上述运行命令和输出由本人在 VS Code WSL 终端执行并反馈，Codex 协助解释输出和整理记录。本节保留当时的 A+B 联调状态；后续接入 C 的结果见下一节。
+
+## 十二 接入 C 后的代码回归记录
+
+### 12.1 合并范围与职责
+
+在个人 `lab2-yang` 分支、工作区干净的状态下获取远端更新，以 `403c330` 为本地起点执行：
+
+```bash
+git merge --no-ff --no-commit origin/lab2-cheng
+git restore --source=HEAD --staged --worktree -- code/docs report/buddy report/prompt1.md
+```
+
+本轮接入 C 分支的 SLUB、检查函数、MMU 探针及辅助工具，合并未发生源码冲突。第二条命令保留 B 原有设计、测试和报告材料，以及 A 的 `report/prompt1.md`，避免这些文件在合并中被删除。以下实测发生在合并暂停、尚未提交的工作区；不将测试结果误写成已经推送的新合并提交。
+
+本人承担代码接入及回归，SLUB 和 QEMU 源码调试的实现与原始结论仍归 C。报告整合本轮暂缓，仅补充本人的联调记录。
+
+SLUB 超过小对象范围后，按包含管理头的总大小计算页请求，并保存原始请求页数。例如申请 3 页、Buddy 实际占用 4 页时，释放仍传 3，符合本报告第二节的契约。SLUB 的内部请求页计数与 Buddy 实际占用页计数可能不同；是否完整归还资源，应比较操作前后的 `nr_free_pages()`。
+
+### 12.2 实际遇到的工具链兼容问题
+
+首次执行 `make -C code SLUB_CHECK=1 qemu`，在编译 `entry.S` 时出现：
+
+```text
+Error: cannot find default versions of the ISA extension `zicsr'
+Error: cannot find default versions of the ISA extension `zifencei'
+```
+
+C 的 Makefile 使用显式的 `-march=rv64imac_zicsr_zifencei -mabi=lp64` 架构选项，本人的 RISC-V GCC 10.2.0 配套汇编器不能直接接受其中的扩展版本设置。Codex 根据报错和工程配置建议在命令行传入空的 `ARCH_FLAGS=`，恢复本环境原先可用的默认架构设置；随后编译和运行成功。此处理只覆盖本人旧工具链的本次验证，不修改 C 的默认设置，也不是修改 Buddy 或 SLUB 算法。
+
+### 12.3 宿主测试回归
+
+在仓库根目录依次执行：
+
+```bash
+make -C code member-c-host
+make -C code buddy-host-test
+```
+
+SLUB 宿主测试输出两轮边界、对齐、不重叠、内容、复用、跨页增长、回收及失败检查通过，每轮均恢复到 256 个空闲页，随后输出：
+
+```text
+host: injected PMM failure and fragmentation passed
+```
+
+Buddy 宿主测试再次完成全部 28 个场景：
+
+```text
+RESULT: 28/28 passed
+```
+
+这是接入 C 后对真实代码重新执行的回归，覆盖范围及宿主模型的限制仍以第六节为准。
+
+### 12.4 QEMU 组合验证
+
+每轮先退出上一轮 QEMU，再执行 `make -C code clean`，分别运行以下配置：
+
+| 配置命令 | 实际结果 |
+| --- | --- |
+| `make -C code ARCH_FLAGS= SLUB_CHECK=1 qemu` | 默认 Best-Fit 检查通过；SLUB 各项检查通过，空闲页恢复到 31928 |
+| `make -C code ARCH_FLAGS= BUDDY=1 SLUB_CHECK=1 qemu` | Buddy 基础检查及 SLUB 各项检查通过，空闲页恢复到 31792，之后 Buddy 基础检查再次通过 |
+| `make -C code ARCH_FLAGS= SLUB_CHECK=1 MMU_PROBE=1 qemu` | 默认 Best-Fit 检查、SLUB 检查及 MMU 探针运行通过，空闲页恢复到 31927 |
+
+Buddy+SLUB 的关键输出为：
+
+```text
+memory management: buddy_pmm_manager
+page_init: free range [0x803d0000, 0x88000000)
+page_init: register 31792 free pages
+buddy_check() basic invariants succeeded!
+check_alloc_page() succeeded!
+slub: size boundaries, alignment, non-overlap and contents passed
+slub: reuse, cross-page growth, reclamation and failure passed
+slub_check() succeeded! free pages restored: 31792
+```
+
+启用 MMU 探针的默认配置输出为：
+
+```text
+MMU probe: VA=ffffffffc0208000 satp=8000000000080206
+memory management: best_fit_pmm_manager
+page_init: free range [0x80349000, 0x88000000)
+page_init: register 31927 free pages
+check_alloc_page() succeeded!
+slub_check() succeeded! free pages restored: 31927
+```
+
+不同配置的代码、BSS 和对齐占用不同，因此初始空闲数不同；本次回收检查比较的是同一配置的前后计数。探针能够运行不等于已经观察到 QEMU 内部的 TLB 命中、未命中及逐级查表分支；本人本轮没有重做 C 的双 GDB 调试，不用这些启动输出代替相应调试证据。
+
+### 12.5 最终基础评分与交付状态
+
+最后执行：
+
+```bash
+make -C code clean
+make -C code ARCH_FLAGS= grade
+```
+
+实际输出：
+
+```text
+lab2 injection complete
+  -check page init:                          OK
+  -check best fit:                           OK
+Total Score: 20/20
+```
+
+评分确认接入 C 后，原有页初始化和 Best-Fit 检查仍然通过；Buddy、SLUB 的验证依据是独立测试与组合运行结果，不能归入此 20 分。清理和评分会删除构建目录，本报告保存实际终端输出摘录，不声称此前的宿主日志仍存在。
+
+至此，本人的 Buddy 实现、两份提示词、独立测试，以及 A+B+C 代码接入后的上述回归均已完成。本文整理时，C 的合并结果和本次报告更新尚待 Git 提交、推送；提交状态应以仓库实际记录为准。全组报告整合继续等待 A，本轮未改写队友报告内容，也未向小组 `lab2` 分支直接推送。
