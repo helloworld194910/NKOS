@@ -1,12 +1,12 @@
-# Lab2 Buddy System 设计实现与独立测试
+# Lab2 Buddy System 设计实现与测试联调
 
-记录日期：2026 年 10 月 17 日。
+初始记录日期：2026 年 10 月 17 日。联调更新日期：2026 年 10 月 18 日。
 
-分支交接补充（2026 年 10 月 18 日）：本章的开发与测试记录对应下述原本独立的本地仓库。交接版本以小组远端 `lab2` 的 `fe29501` 为基础，保留组员已经实现的 `page_init()`，加入 Buddy 可选接入和独立测试。代码在仓库 `code/`，本报告及提示词在 `report/buddy/`；在新分支运行命令前先进入 `code/`。原记录中的 `27461b7`、`876e009`、`fc84bdb` 是原本地仓库提交号，不表示它们已经成为远端分支的祖先。原提示词按实际使用版本保留，不将当时的“初始化未完成”改写为已完成。新分支的编译、回归和 QEMU 结果需按实际执行另行补充；最终默认 Best-Fit 和 SLUB 集成仍待完成。
+分支交接补充：本章前期开发记录对应下述原本独立的本地仓库。个人远端分支最初以小组 `lab2` 的 `fe29501` 为基础建立，随后接入 A 的 `27dbe9b`，完成初始化、默认 Best-Fit 与 Buddy 的联调。代码在仓库 `code/`，本报告及提示词在 `report/buddy/`；第十一节中的命令从仓库根目录执行。原记录中的 `27461b7`、`876e009`、`fc84bdb` 是原本地仓库提交号，不表示它们已经成为远端分支的祖先。原提示词按实际使用版本保留，不将生成当时的条件改写成现在的状态。最新验证结果见第十一节；C 的 SLUB 和全组最终报告整合仍待交付。
 
 本章为小组成员 B 负责的 Buddy System 部分，记录需求规格、AI 提示词、模块实现、独立测试及当前验证结果。代码由 Codex 根据明确规格辅助生成，WSL 终端中的编译、测试和 Git 提交由本人执行。两份实际使用的提示词分别保存在同目录的 [Buddy实现提示词.md](Buddy实现提示词.md) 和 [Buddy测试提示词.md](Buddy测试提示词.md)，应与本章一起提交。
 
-截至本次记录，Buddy 的 RISC-V 独立目标编译通过，WSL/Linux 宿主独立测试 **28/28 通过**。A 的物理内存初始化和 C 的 SLUB 尚未在本章所对应的版本中集成，因此完整内核构建、QEMU 启动及小组最终回归仍未完成。
+截至本次联调更新，默认 Best-Fit 与 Buddy 两种配置均完成干净构建、QEMU 启动及各自检查；集成后的 Buddy 宿主测试 **28/28 通过**，默认配置评分 **20/20**。这些结果覆盖当前 A+B 组合，不包含尚未接入的 C 的 SLUB，也不代表 QEMU 已运行 Buddy 的全部行为测试。
 
 ## 一 对实验整体逻辑的理解
 
@@ -30,7 +30,7 @@ free_pages(base, n)  → buddy_free_pages(base, n)
 nr_free_pages()     → buddy_nr_free_pages()
 ```
 
-以上是框架与接入代码规定的调用关系，不是已经完成 QEMU 动态跟踪的结果。
+以上是框架与接入代码规定的调用关系。第十一节的 QEMU 输出确认管理器选择、初始化及检查执行成功，但没有对每一个调用进行 GDB 单步跟踪。
 
 ## 二 Buddy 算法与设计选择
 
@@ -329,9 +329,9 @@ AI 助手尝试直接调用 WSL 命令时得到 `Wsl/E_ACCESSDENIED`。文件共
 
 当前实现用逐页状态维护换取可理解性和较强检查能力，代价是静态开销和块范围遍历。可改进为更紧凑的位图或块级元数据，减少分配释放时的逐页重写；动态设置最大阶，支持更大的或多段物理内存；在并发场景加入同步机制；将仅适合初始化阶段的零引用计数检查与一般运行期检查分开。任何改进都需先更新契约和独立测试，不能只根据性能直觉修改。
 
-收到 A 的初始化和 Best-Fit、C 的 SLUB 后，由 B 完成代码集成与构建回归。当前 `BUDDY=1` 定义 `LAB2_BUDDY`，`pmm.c` 选择 Buddy；未定义时仍保留原默认 First-Fit。最终集成应将默认分支改为 Best-Fit，保留 Buddy 的独立启用方式，并核对 SLUB 使用公共页分配接口且释放长度符合所选管理器契约。
+A 的初始化和 Best-Fit 已接入；`BUDDY=1` 定义 `LAB2_BUDDY` 时选择 Buddy，未定义时选择 Best-Fit。后续收到 C 的 SLUB 后，由 B 继续全组集成与回归，核对 SLUB 使用公共页分配接口且释放长度符合所选管理器契约。
 
-切换配置后的预定验证命令为：
+从 `code/` 目录切换配置时，采用干净构建：
 
 ```bash
 make clean
@@ -342,6 +342,131 @@ make clean
 make qemu
 ```
 
-以上命令尚未在本章对应的完整内核中完成，不能把预期的管理器名称和检查信息当作已经观察到的结果。原评分器要求默认 Best-Fit，不能在 Buddy 模式下把该名称检查失败当成 Buddy 算法错误。
+两种配置的完整构建与 QEMU 启动均已执行，结果见第十一节。原评分器要求默认 Best-Fit，不能在 Buddy 模式下把该名称检查失败当成 Buddy 算法错误。
 
-提交前仍需核对实际学号注释、默认配置、完整构建、QEMU 启动和各模块运行说明。公共报告格式由 B 整合，各模块技术问题由原负责人修复后交回复验；本章不代写 A、C 的实现和调试结论。
+提交前仍需补充本人实际学号注释，并在收到 C 的成果后重新进行全组回归。公共报告格式由 B 整合，各模块技术问题由原负责人修复后交回复验；本章不代写 A、C 的实现和调试结论。
+
+## 十一 接入 A 后的实际联调记录
+
+### 11.1 合并来源与冲突处理
+
+在个人 `lab2-yang` 分支执行 `git fetch origin`，将 A 所在 `lab2` 更新到 `27dbe9b`，然后通过 `git merge --no-commit origin/lab2` 开始合并。合并前个人分支为 `aa3baa1`。本文记录的是合并待提交状态下的实测结果，不编造新的合并提交号。
+
+Git 在 `code/kern/mm/pmm.c` 的管理器选择处报告冲突：个人版本增加了 Buddy 条件选择，A 的版本将默认管理器改为 Best-Fit。处理方式是保留双方功能：
+
+```c
+static void init_pmm_manager(void) {
+#ifdef LAB2_BUDDY
+    pmm_manager = &buddy_pmm_manager;
+#else
+    pmm_manager = &best_fit_pmm_manager;
+#endif
+    cprintf("memory management: %s\n", pmm_manager->name);
+    pmm_manager->init();
+}
+```
+
+这是分支接入冲突处理，不是修改 Buddy 分配算法。A 的初始化和原有 Best-Fit 测试予以保留。保存并暂存后，`git diff --name-only --diff-filter=U` 无输出；`git --no-pager diff --cached --check -- code/` 也无输出。
+
+检查全部暂存内容时，A 的 `report/prompt1.md` 和 `report/report.md` 报告了行尾空格。这属于文档格式问题，与源码冲突或编译错误不同；当前联调未擅自重写队友报告。
+
+### 11.2 默认 Best-Fit 启动
+
+在仓库根目录执行：
+
+```bash
+make -C code clean
+make -C code qemu
+```
+
+编译、链接及镜像生成完成，QEMU 实际输出包括：
+
+```text
+memory management: best_fit_pmm_manager
+page_init: npage=557056 nbase=524288 descriptors=32768
+page_init: pages_va=0xffffffffc0207000 pages_pa=0x80207000 descriptor_end_pa=0x80347000
+page_init: free range [0x80347000, 0x88000000)
+page_init: register 31929 free pages
+check_alloc_page() succeeded!
+satp virtual address: 0xffffffffc0205000
+satp physical address: 0x0000000080205000
+```
+
+由此确认默认选择 Best-Fit，完成初始化并运行其检查。内核随后进入框架已有的 `while (1)`，不再输出，属于预期等待状态；使用 QEMU 的 Ctrl+A、松开后按 X 退出。
+
+### 11.3 Buddy 启动
+
+退出上一轮 QEMU 后执行：
+
+```bash
+make -C code clean
+make -C code BUDDY=1 qemu
+```
+
+编译、链接和启动成功，实际输出包括：
+
+```text
+end    0xffffffffc028e470 (virtual)
+Kernel executable memory footprint: 569KB
+memory management: buddy_pmm_manager
+page_init: npage=557056 nbase=524288 descriptors=32768
+page_init: pages_va=0xffffffffc028f000 pages_pa=0x8028f000 descriptor_end_pa=0x803cf000
+page_init: free range [0x803cf000, 0x88000000)
+page_init: register 31793 free pages
+buddy_check() basic invariants succeeded!
+check_alloc_page() succeeded!
+satp virtual address: 0xffffffffc0205000
+satp physical address: 0x0000000080205000
+```
+
+Buddy 配置的空闲页比 Best-Fit 少 136 页；两种配置描述符起点及空闲起点均相差 `0x88000`，即 136 页。该差异符合链接时启用 Buddy 元数据和相关代码后内核占用增加的情况，不能直接要求两种配置有相同的初始空闲数。
+
+这轮 QEMU 验证确认真实初始化向 Buddy 注册区间、元数据布局和基础结构检查成功。当前 `.check` 不包含完整的分配释放行为序列，因此不把这个成功信息等同于全部 Buddy 行为在 QEMU 中验证通过。
+
+### 11.4 集成后的独立测试回归
+
+退出 Buddy QEMU 后执行：
+
+```bash
+make -C code buddy-host-test
+```
+
+真实 Buddy 源码与宿主适配分别编译、链接，10 个正常场景和 18 个异常场景均输出 PASS，最终结果为：
+
+```text
+RESULT: 28/28 passed; logs: /home/yxqjrh/操作系统/lab2/lab2-yang/code/obj/buddy-host/logs
+```
+
+覆盖明细与第六节一致。该结果是在合并 A 代码后重新执行的回归，不是仅引用原独立仓库的旧结果。
+
+### 11.5 原评分检查
+
+随后不带 `BUDDY=1` 执行：
+
+```bash
+make -C code grade
+```
+
+评分规则清理构建产物，在临时目录注入已有测试后构建运行，实际输出为：
+
+```text
+lab2 injection complete
+  -check page init:                          OK
+  -check best fit:                           OK
+Total Score: 20/20
+```
+
+此评分覆盖原测试中的页初始化和 Best-Fit 检查，不给 Buddy 或 SLUB 打分，不能将 20/20 写成所有拓展任务均已验证。评分过程会清理构建目录，前一步的宿主日志可能随之删除，因此本节按实际终端输出保存结果摘录，不保证 obj 下仍保留每轮日志。
+
+### 11.6 当前交付边界
+
+| 验证项目 | 实际结果 |
+| --- | --- |
+| 默认 Best-Fit 完整构建和 QEMU 启动 | 通过 |
+| Buddy 完整构建、QEMU 启动和基础结构检查 | 通过 |
+| 合并后的 Buddy 宿主独立测试 | 28/28 通过 |
+| 默认配置原评分检查 | 20/20 |
+| 合并结果的 Git 提交与推送 | 待按实际操作记录 |
+| C 的 SLUB、全组最终回归和报告整合 | 待对应成果交付 |
+
+上述运行命令和输出由本人在 VS Code WSL 终端执行并反馈，Codex 协助解释输出和整理记录。当前已完成 B 的 Buddy 实现、独立测试和与 A 的内核联调；全组公共收尾仍需等待 C 的技术成果及 A、C 的完整报告。

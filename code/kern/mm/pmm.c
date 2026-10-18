@@ -40,7 +40,7 @@ static void init_pmm_manager(void) {
 #ifdef LAB2_BUDDY
     pmm_manager = &buddy_pmm_manager;
 #else
-    pmm_manager = &default_pmm_manager;
+    pmm_manager = &best_fit_pmm_manager;
 #endif
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
