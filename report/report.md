@@ -8,7 +8,7 @@
 | **小组成员** | 2411824 于蕾、2412790 杨茜茹、2413921 程子涵 |
 | **本报告负责人** | 2413921 程子涵（成员 C） |
 | **完成日期** | 2026-10-18 |
-| **报告范围** | QEMU 六项调试、SLUB 拓展、最终联调及要求覆盖核对 |
+| **报告范围** | QEMU 地址翻译调试、SLUB 拓展与集成验证 |
 
 ### 小组分工
 
@@ -18,9 +18,9 @@
 | 2412790 杨茜茹（B） | Buddy 设计、实现与测试 | Buddy 设计、实现与测试；代码集成 |
 | 2413921 程子涵（C） | QEMU 地址翻译/TLB 六项调试、SLUB 实现与测试 | 本报告、调试证据及 lab2-cheng 分支交付 |
 
-本报告按照指定仓库的“实验基本信息—实验目的—实验环境—整体逻辑—实验内容与实现—测试与验证—总结”格式编排。A/B 的详细材料分别见 [A 报告](contributions/A/report.md)、[B 报告](buddy/lab2_B_Buddy实验报告.md)；A、B 的个人开发记录分别保存在对应材料中。
+本报告按照仓库规定的“实验基本信息—实验目的—实验环境—整体逻辑—实验内容与实现—测试与验证—总结”格式编排。
 
-报告中的 8 张截图取自指定目录，保持原图。10 月 17 日截图记录宿主测试或 First-Fit 隔离内核；10 月 18 日的 Best-Fit/Buddy 集成结果由对应运行日志支持。
+
 
 ---
 
@@ -64,7 +64,7 @@ QEMU 配置为：
 make -j8
 ```
 
-调试构建放在工程外的可配置目录，不要求 make install。实际路径、工具版本、源码及内核哈希见 [environment.json](evidence/member-c/environment.json)。源码版本以该记录为准，不把其他版本的函数名套入本次分析。
+调试构建放在工程外的可配置目录，不要求 make install。本次按 QEMU 4.1.1 源码分析，函数名与调用路径均以该版本为准。
 
 ---
 
@@ -148,7 +148,7 @@ size_t slub_owned_pages(void);
 
 ##### 实现迭代过程
 
-分类判断从“容量大于请求”收紧为精确类别契约；保留 anchor 后复用 hole，排除底层 PMM 恰好重用同一页的干扰。最终分别切换 Best-Fit/Buddy，并在 SLUB 回收后再检查底层不变量。当前独立提示词属于规范化整理稿，实际结果来自已保存日志。
+分类判断从“容量大于请求”收紧为精确类别契约；保留 anchor 后复用 hole，排除底层 PMM 恰好重用同一页的干扰。最终分别切换 Best-Fit/Buddy，并在 SLUB 回收后再检查底层不变量。当前独立提示词属于规范化整理稿，实际结果来自本次执行观察。
 
 ### 调试模块：QEMU 地址翻译与 TLB
 
@@ -173,7 +173,7 @@ size_t slub_owned_pages(void);
        → 对实际宿主内存完成读取
 ```
 
-路径由 `qemu-host-trace.log` 的真实调用栈支撑。`load_helper` 在 `accel/tcg/cputlb.c:1248` 附近计算 mmu_idx、索引和按访问类型选择的 tag，1271 行附近判断主表是否命中，失败后检查 victim 表，再调用 tlb_fill。不能把所有读取都画成必然调用 C helper：正常 TCG 快路径直接执行生成的宿主指令，参见下文“调试任务三”。
+双 GDB 调试观察到的调用栈显示：`load_helper` 在 `accel/tcg/cputlb.c:1248` 附近计算 mmu_idx、索引和按访问类型选择的 tag，1271 行附近判断主表是否命中，失败后检查 victim 表，再调用 tlb_fill。不能把所有读取都画成必然调用 C helper：正常 TCG 快路径直接执行生成的宿主指令，参见下文“调试任务三”。
 
 `target/riscv/cpu_helper.c:155` 附近的 `get_physical_address` 依次处理以下分支：
 
@@ -185,9 +185,7 @@ size_t slub_owned_pages(void);
 
 这里描述的是 QEMU 4.1.1 的代码，不能直接套用更新版本的函数名或新特权规范分支。
 
-![首次数据读取的慢路径与无效 TLB tag](images/03-tlb-miss.png)
 
-图 1：10 月 17 日原始手工调试。调用栈包含 `load_helper → tlb_fill → riscv_cpu_tlb_fill`；index=8、tag 全 1、code_read=false，确认这是数据读取的首次未命中。目标地址条件和访问类型过滤避免将取指混入。
 
 ##### 实现规格
 
@@ -195,7 +193,7 @@ size_t slub_owned_pages(void);
 
 ##### 实现迭代过程
 
-上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史截图保持原样，不把旧画面说成最终管理器集成结果。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
+上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史调试观察与最终集成结果分开陈述，不把旧地址说成最终内核地址。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
 
 #### 调试任务二：单步页表翻译与手工核算
 
@@ -205,7 +203,7 @@ size_t slub_owned_pages(void);
 
 capture_debug.py 的 --step 入口。观察 get_physical_address 的 env、physical、prot、addr、access_type、mmu_idx，不修改 QEMU C 接口。
 
-10 月 17 日原截图中第一条指令为 `0xffffffffc02010f4: ld a3,0(a5)`，下一条为 `0xffffffffc02010f6: ld a4,0(a5)`。10 月 18 日最终集成内核重新链接后，两条 PC 分别为 `0xffffffffc0200fcc`、`0xffffffffc0200fce`，执行后为 `0xffffffffc0200fd0`；a5 仍指向 `mmu_probe_word`，VA、satp、PTE 与下面手算值一致。自动脚本从当前内核符号取地址，不硬编码截图中的 PC。两条指令的访问类型均是 `MMU_DATA_LOAD=0`，有效特权模式为 S，mmu_idx=1。
+10 月 17 日调试记录中的第一条指令为 `0xffffffffc02010f4: ld a3,0(a5)`，下一条为 `0xffffffffc02010f6: ld a4,0(a5)`。10 月 18 日最终集成内核重新链接后，两条 PC 分别为 `0xffffffffc0200fcc`、`0xffffffffc0200fce`，执行后为 `0xffffffffc0200fd0`；a5 仍指向 `mmu_probe_word`，VA、satp、PTE 与下面手算值一致。自动脚本从当前内核符号取地址，不硬编码旧记录中的 PC。两条指令的访问类型均是 `MMU_DATA_LOAD=0`，有效特权模式为 S，mmu_idx=1。
 
 | 变量 | 实测值 |
 | --- | --- |
@@ -245,15 +243,13 @@ PA = physical_page | (VA & 0xfff) = 0x80208000
 
 也可用映射起点交叉检查：该根项把 `0xffffffffc0000000` 起的 1 GiB 映射到 `0x80000000`，故 VA 的 `0x208000` 偏移得到同样结果。`get_physical_address` 在分页成功路径返回物理页基址；本次偏移恰为 0，不能据此声称该函数在所有输入下都会直接返回完整字节地址。
 
-`qemu-host-step.log` 保存了宿主 next、局部变量、PTE 读取后分支和 finish 的真实输出。刚停在 `ppn = ...` 这一行时赋值尚未执行，ppn 显示的是未初始化值；next 后才成为 524288。finish 返回至调用表达式时 `ret` 的赋值同样可能尚未完成，应看返回值 0 和已写入的 pa/prot，或再单步至下一行。日志保留这些现象，没有将垃圾值当作算法结果。
+宿主 GDB 单步观察到局部变量、PTE 读取后的分支和函数返回值。刚停在 `ppn = ...` 这一行时赋值尚未执行，ppn 显示的是未初始化值；next 后才成为 524288。finish 返回至调用表达式时 `ret` 的赋值同样可能尚未完成，应看返回值 0 和已写入的 pa/prot，或再单步至下一行。因此不能把赋值执行前的旧值当作算法结果。
 
-![根页表索引与 PTE 地址](images/04-page-walk.png)
 
-图 2：levels=3，实际 i=0、ptshift=18，根索引为 `0x1ff`，PTE 地址为 `0x80206ff8`。尚未将“支持三级”误写为“实际遍历三级”。
+levels=3，实际 i=0、ptshift=18，根索引为 `0x1ff`，PTE 地址为 `0x80206ff8`。尚未将“支持三级”误写为“实际遍历三级”。
 
-![页表项、PPN 与最终物理地址](images/05-page-result.png)
 
-图 3：单步后 PPN=`0x80000`，函数成功返回，下一行可见 PA=`0x80208000`、prot=7。图 2、图 3与手算共同构成完整转换证据。
+单步后 PPN=`0x80000`，函数成功返回，下一行可见 PA=`0x80208000`、prot=7。上述 PTE 与 PA 数值和手工计算结果一致。
 
 ##### 实现规格
 
@@ -261,7 +257,7 @@ PA = physical_page | (VA & 0xfff) = 0x80208000
 
 ##### 实现迭代过程
 
-上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史截图保持原样，不把旧画面说成最终管理器集成结果。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
+上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史调试观察与最终集成结果分开陈述，不把旧地址说成最终内核地址。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
 
 #### 调试任务三：TLB 查询、未命中、填充与命中
 
@@ -284,21 +280,17 @@ QEMU 4.1.1 中可以找到 C 代码：`cputlb.c` 的 `load_helper` 计算索引�
 
 第一次 ld 的真实调用栈包含 victim 检查后的 tlb_fill，说明本次 victim 也没有提供匹配项。日志只出现一次目标地址的真实数据页表遍历，而客体日志确认两条 ld 都执行结束。
 
-第二次访问不一定再次进入 load_helper，所以只在 C helper 上打断点，不能观察每次命中。x86_64 的 `tcg/i386/tcg-target.inc.c:1699` 中 `tcg_out_tlb_load` 会生成取索引、比较 tag、`jne slow_path` 和加 addend 的宿主机器码。匹配时直接访问 `guest_VA + addend` 对应的宿主 RAM 地址。它缓存的不仅是客体 VA→PA 关系，还包含把访存快速导向宿主内存的资料。本次“第二次走快路径”的结论由已填充表项、两次完成值、仅一次慢路径记录及该源码共同支持，未声称测得真实硬件命中耗时。
+第二次访问不一定再次进入 load_helper，所以只在 C helper 上打断点，不能观察每次命中。x86_64 的 `tcg/i386/tcg-target.inc.c:1699` 中 `tcg_out_tlb_load` 会生成取索引、比较 tag、`jne slow_path` 和加 addend 的宿主机器码。匹配时直接访问 `guest_VA + addend` 对应的宿主 RAM 地址。它缓存的不仅是客体 VA→PA 关系，还包含把访存快速导向宿主内存的资料。两次读取均得到相同数据，目标慢路径只发生一次；该结果与 TCG 快路径源码相符。本次没有测量真实硬件命中耗时。
 
 自动脚本只把调用者为 `riscv_cpu_tlb_fill` 的 get_physical_address 记为 REAL_WALK，避免把客体 GDB 的 `x`、断点设置或源码读取造成的 `riscv_cpu_get_phys_page_debug` 路径混入。取指使用 addr_code / MMU_INST_FETCH，不能和数据 load 的 addr_read 混淆。
 
-![第一次加载完成后的 SoftTLB](images/06-tlb-filled.png)
 
-图 4：填充后 addr_read/write/code 均为目标虚拟页，addend 用于换算宿主地址，目标数据慢路径计数为 1。addend 不能解释为客体物理页号。
+填充后 addr_read/write/code 均为目标虚拟页，addend 用于换算宿主地址，目标数据慢路径计数为 1。addend 不能解释为客体物理页号。
 
-![第二次加载完成后的 TLB 和寄存器](images/07-tlb-second-load.png)
 
-图 5：PC 前进到 `0xffffffffc02010f8`，gpr[13]/gpr[14] 都为 `0x1122334455667788`，目标慢路径计数仍为 1，说明第二次没有重新遍历页表。
+PC 前进到 `0xffffffffc02010f8`，gpr[13]/gpr[14] 都为 `0x1122334455667788`，目标慢路径计数仍为 1，说明第二次没有重新遍历页表。
 
-![客体 GDB 的两条 ld 与最终读取结果](images/08-guest-two-loads.png)
 
-图 6：客体视角确认两条 ld 分别执行，a3/a4 得到相同值。这与宿主 TLB 快照相互核对，避免仅凭“断点没触发”判断命中。
 
 ##### 实现规格
 
@@ -306,7 +298,7 @@ QEMU 4.1.1 中可以找到 C 代码：`cputlb.c` 的 `load_helper` 计算索引�
 
 ##### 实现迭代过程
 
-上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史截图保持原样，不把旧画面说成最终管理器集成结果。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
+上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史调试观察与最终集成结果分开陈述，不把旧地址说成最终内核地址。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
 
 #### 调试任务四：Bare 模式与真实 CPU TLB 的逻辑区别
 
@@ -328,9 +320,8 @@ FILL addr=2149609472 pa=2149609472 ret=0 prot=7 access=MMU_DATA_STORE
 
 真实 RISC-V 在 Bare 模式下对这些访问不做分页地址翻译，但仍受特权、PMP 等物理访问规则约束；硬件是否复用某种内部缓存结构属于微架构选择。QEMU SoftTLB 则是模拟器加速全部被模拟内存访问的软件缓存，即使客体关闭分页，也需要把客体地址导向宿主 RAM、MMIO 或其他 MemoryRegion。因此不能把“QEMU Bare 仍查询 SoftTLB”解释为“硬件 Bare 也必须走分页 TLB”，也不能把软件直接索引、victim 策略或当前容量当成真实 CPU 的结构。
 
-![Bare 模式数据存储的恒等地址翻译](images/02-bare-store.png)
 
-图 7：satp=0、access_type=1，调用栈为 store_helper 的慢路径，返回 PA=`0x80207000` 与输入相同；支持“未启用分页时仍有 QEMU 软件地址缓存”这一比较。
+satp=0、access_type=1，调用栈为 store_helper 的慢路径，返回 PA=`0x80207000` 与输入相同；支持“未启用分页时仍有 QEMU 软件地址缓存”这一比较。
 
 ##### 实现规格
 
@@ -338,7 +329,7 @@ FILL addr=2149609472 pa=2149609472 ret=0 prot=7 access=MMU_DATA_STORE
 
 ##### 实现迭代过程
 
-上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史截图保持原样，不把旧画面说成最终管理器集成结果。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
+上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史调试观察与最终集成结果分开陈述，不把旧地址说成最终内核地址。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
 
 #### 调试任务五：实际观察与理解变化
 
@@ -362,7 +353,7 @@ FILL addr=2149609472 pa=2149609472 ret=0 prot=7 access=MMU_DATA_STORE
 
 ##### 实现迭代过程
 
-上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史截图保持原样，不把旧画面说成最终管理器集成结果。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
+上述结论按源码分析与实际观察分别标注。最终内核重新链接后的 PC 从符号自动取得；历史调试观察与最终集成结果分开陈述，不把旧地址说成最终内核地址。没有实际触发的分支或故障不写成已经动态验证；相关问题处理汇总于任务六。
 
 #### 调试任务六：问题定位与记录
 
@@ -374,13 +365,13 @@ FILL addr=2149609472 pa=2149609472 ret=0 prot=7 access=MMU_DATA_STORE
 
 | 问题情景 | 思路与提问意图 | 实际处理 | 验证依据 |
 | --- | --- | --- | --- |
-| 本地旧骨架缺少 A/B 交付，旧说明仍写等待 | 先核对用户给出的两个分支，确定哪个包含完整基础代码 | 以已包含 A 的 lab2-yang 为底座，接入 C 的 SLUB 与探针 | 来源提交、integration.json、最终三种配置日志 |
-| 单看翻译函数不足以证明第二次 hit | 需要同时看到指令完成、TLB 状态与慢路径次数 | 使用三次快照、两条 ld 的值及 TCG 源码交叉核对 | host/guest trace 和原截图 |
+| 集成基线选择 | 对照 A 的 `lab2` 与 B 的 `lab2-yang` | 以包含 A 成果的 `lab2-yang` 为底座，接入 C 的 SLUB 与探针 | 最终源码与三种配置的运行结果 |
+| 单看翻译函数不足以证明第二次 hit | 需要同时看到指令完成、TLB 状态与慢路径次数 | 使用三次快照、两条 ld 的值及 TCG 源码交叉核对 | host/guest trace 结果与指令观察 |
 | Bare 对照仅靠取指不充分 | 找启动阶段确定会执行的数据存储 | 观察保存 hartid 的真实 sd，过滤地址与访问类型 | satp=0、access=1 的 REAL_WALK/FILL |
-| 切换宏可能复用旧对象 | 必须确认实际构建配置而非只看命令 | 各配置先 make clean，检查运行管理器名称 | 三份构建日志、默认/Best-Fit/Buddy 运行日志 |
+| 切换宏可能复用旧对象 | 必须确认实际构建配置而非只看命令 | 各配置先 make clean，检查运行管理器名称 | 各配置的构建与启动结果 |
 | Buddy 请求 3 页实际占 4 页 | 核对释放应传实际占用还是原请求 | 按 B 契约保留原始 3 页，执行大对象及回收后的不变量检查 | Buddy＋SLUB 恢复 31792 页 |
-| 首次 make grade 被 CRLF 阻断 | 区分 shell 解析错误和分配器错误 | 统一 LF 后重跑，保留评分规则 | grade.log，20/20 |
-| 旧提示词过短且合并在单稿 | 逐任务核对接口、范围和 Case，避免套错示例路径/签名 | 新建八份标准提示词；删除被替代的 C 旧稿并修正引用 | README 提示词检查表、文档链接核查 |
+| 首次 make grade 被 CRLF 阻断 | 区分 shell 解析错误和分配器错误 | 统一 LF 后重跑，保留评分规则 | 评分结果 20/20 |
+| 提示词需要细化 | 逐任务核对接口、范围和 Case | 按仓库格式整理八项任务并合并到单份提示词 | 本报告与 `prompt.md` |
 
 ##### 实现规格
 
@@ -388,7 +379,7 @@ FILL addr=2149609472 pa=2149609472 ret=0 prot=7 access=MMU_DATA_STORE
 
 ##### 实现迭代过程
 
-最初的短提示词按功能概述给出约束；本次对照标准文件补为八份独立任务。每份写明目标文件、必须修改真实文件、全部适用接口、真实 RELY、白名单/禁区、明确前后条件与 Case、系统限制。此次只调整文档，原有测试结果沿用真实日志；文档引用检查不被称为重新运行 QEMU。
+最初的短提示词按功能概述给出约束；本次对照标准文件补为八份独立任务。每份写明目标文件、必须修改真实文件、全部适用接口、真实 RELY、白名单/禁区、明确前后条件与 Case、系统限制。此次只调整文档，原有测试结果按实际执行记录整理；文档引用检查不被称为重新运行 QEMU。
 
 没有将未出现的分配器越界、泄漏或重复发放写成“实际修复过的 bug”。B 的原稿已包含 A+B 联调，本次新增的是 C 的对象层与最终调试集成，不把 B 原稿误述为始终只有宿主测试。
 
@@ -396,71 +387,39 @@ FILL addr=2149609472 pa=2149609472 ret=0 prot=7 access=MMU_DATA_STORE
 
 ## 五、测试与验证
 
-### 5.1 SLUB 覆盖、结果与截图
+### 5.1 SLUB 覆盖与结果
 
-| 测试 | 为什么有效 | 实际结果 |
+| 测试 | 覆盖内容 | 实际结果 |
 | --- | --- | --- |
-| 1、15、16、17 … 2048 及 2049/4095/4096/4097/8193 | 检查分类、对齐与大对象页数边界；比较精确预期类别 | 宿主、QEMU 均通过 |
-| 多对象两两区间不重叠 | 发现重复发放或步长不足 | 均通过 |
-| 所有对象写不同模式，再逐字节读取 | 发现后续分配、头部或槽写入破坏已存数据 | 均通过 |
-| 保留 anchor，释放并重新申请 hole | 不靠 PMM 重新返回同一页，直接验证页内槽复用 | 均通过 |
-| 320 个 16 字节对象、四轮交错释放 | 净对象数据已超过 4 KiB，保证跨页；核查计数恢复 | 均通过 |
-| 0、SIZE_MAX、NULL、栈地址、内部地址、重复释放 | 验证非法请求无越界、无错误回收 | 均通过 |
-| 请求页数超过当前可用总数 | 验证失败时统计不变 | 均通过 |
-| 注入 PMM 返回 NULL，且已有对象仍存活 | 强制覆盖底层分配失败路径 | 宿主通过 |
-| 所有页耗尽 | 确认无空闲页时无法创建新 slab | 宿主通过 |
-| 128 个单页空洞、没有连续两页 | 总量充足仍失败，检查连续大对象处理 | 宿主通过 |
+| 1、15、16、17 … 2048 及 2049/4095/4096/4097/8193 字节 | 类别边界、对齐和大对象页数 | 宿主与 QEMU 通过 |
+| 多对象地址区间和逐字节内容检查 | 对象重叠、槽间距和数据完整性 | 通过 |
+| 保留对象期间释放并重分配空槽 | slab 内槽复用 | 通过 |
+| 320 个 16 字节对象及四轮交错释放 | 跨页增长与重复回收 | 通过 |
+| 0、SIZE_MAX、NULL、栈地址、内部地址、重复释放 | 非法请求和释放边界 | 通过 |
+| PMM 失败、页面耗尽和连续页碎片 | 失败原子性及大对象分配失败 | 宿主测试通过 |
 
-宿主测试编译真实的 `slub.c` 与 `slub_check.c`，只替换底层 PMM 为 256 页可控存储，开启 `-fsanitize=address,undefined`。测试包含两次完整 slub_check 和额外底层失败案例；无 sanitizer 报错，最终恢复 256 页。
+宿主测试直接编译真实 `slub.c` 和 `slub_check.c`，底层使用 256 页可控 PMM，并开启 AddressSanitizer 与 UndefinedBehaviorSanitizer。两轮检查后可用页数恢复到 256。
 
-2026-10-18，合并 A/B 后在 QEMU 4.1.1 中运行最终 Best-Fit＋SLUB，串口输出见 [最终日志](evidence/member-c/slub-qemu-final.log)：
+最终 Best-Fit＋SLUB 在 QEMU 4.1.1 中通过初始化和对象检查，回收后剩余 31927 页。Buddy＋SLUB 回收后恢复到该配置的 31792 页基线；Buddy 将 3 页请求向上取整为 4 页，释放仍传原请求 3 页。
 
-```text
-memory management: best_fit_pmm_manager
-check_alloc_page() succeeded!
-slub: size boundaries, alignment, non-overlap and contents passed
-slub: reuse, cross-page growth, reclamation and failure passed
-slub_check() succeeded! free pages restored: 31927
-```
+### 5.2 全工程验证
 
-另外，默认 Best-Fit 启动恢复到无 C 测试开关的配置，初始空闲页为 31929；Best-Fit＋SLUB＋MMU 探针构建为 31927；Buddy＋SLUB 构建为 31792，全部回收到各自基线。Buddy 的 28/28 宿主场景也已在本次 WSL 中重跑。具体命令和证据映射见 [集成记录](docs/integration.md)。内核停在原有无限循环，运行器等待观察窗口结束后终止自己启动的 QEMU；日志尾部 SIGTERM 是测试结束方式。
+| 验证项 | 结果 |
+| --- | --- |
+| 默认 Best-Fit 启动 | PMM 检查通过，初始空闲页 31929 |
+| Buddy 宿主测试 | 28/28，包含 10 个正常场景与 18 个预期拒绝场景 |
+| Best-Fit＋SLUB＋MMU 探针 | SLUB 回收后恢复 31927 页 |
+| Buddy＋SLUB | 回收后恢复 31792 页，前后不变量检查通过 |
+| 原有评分 | Page Init 与 Best-Fit 均通过，20/20 |
+| QEMU 地址翻译调试 | Bare 数据存储、Sv39 两次读取、一次目标慢路径及页表单步结果一致 |
 
-![SLUB 宿主内存检查与退出状态](images/01-slub-host.png)
+20/20 仅覆盖原有评分项。Buddy 的 28 个场景在宿主执行，没有逐项在客体中运行。QEMU 内核保留框架原有等待循环，自动运行器在观察窗口结束后停止 QEMU。
 
-图 8：选用 10 月 17 日的宿主测试截图，可见 ASan/UBSan 编译选项、两次 SLUB 检查、PMM 失败及碎片化验证和 Exit code: 0。最终集成不复用旧 First-Fit 启动截图作证明，而以本节新增日志为依据。
+### 5.3 提交内容
 
-### 5.2 全工程回归与调试证据
-
-| 验证项 | 已保存结果 | 证据 |
-| --- | --- | --- |
-| 默认 Best-Fit 启动 | PMM 成功，31929 初始空闲页 | [pmm-default.log](evidence/member-c/pmm-default.log) |
-| Buddy 独立宿主 | 28/28，10 正常、18 预期拒绝 | [buddy-host.log](evidence/member-c/buddy-host.log) |
-| 最终 Buddy＋SLUB | 恢复 31792 页，前后 Buddy 不变量通过 | [slub-qemu-buddy.log](evidence/member-c/slub-qemu-buddy.log) |
-| 最终 Best-Fit＋SLUB＋探针 | 恢复 31927 页 | [slub-qemu-final.log](evidence/member-c/slub-qemu-final.log) |
-| 原有评分 | Page Init / Best-Fit 均 OK，20/20 | [grade.log](evidence/member-c/grade.log) |
-| 最终双 GDB | Bare sd、Sv39 两次 ld、一次目标 walk | [host trace](evidence/member-c/qemu-host-trace.log)、[guest trace](evidence/member-c/ucore-guest-trace.log) |
-| 最终源级单步 | PTE、PPN、PA 与手算一致 | [host step](evidence/member-c/qemu-host-step.log) |
-
-原有 basic_check / best_fit_check 未修改，规范化哈希记录在 integration.json。20/20 只覆盖原评分项，不等于对所有非法 DTB、并发或全部请求序列的证明。Buddy 的 28 个独立行为场景在宿主执行，不声称全部在真实客体中逐个执行。
-
-指定原图中没有最终 make grade 画面，因此评分引用原始日志，不伪造评分截图。其他图均保持原始像素、在对应分析处配解释。
-
-### 5.3 命令与附件
-
-构建、自动双 GDB、三终端操作和清理命令见 [复现说明](reproduction.md)。当前文档格式调整没有修改源码或重跑内核，沿用上述真实实跑记录；执行证据检查脚本只表示核对已有材料。
-
-代码位于 `../code/kern/mm/slub.c`、`slub.h`、`slub_check.c` 和 `mmu_probe.c`；共享接入由 `../code/Makefile` 与 `../code/kern/init/init.c` 控制。提示词见[综合提示词](prompt.md)，复现步骤见 [复现说明](reproduction.md)，集成记录见 [集成说明](docs/integration.md)，脚本位于 `../code/tools/member_c/`。
-
-最终证据位于 `evidence/member-c/`：`slub-host.log`、`buddy-host.log`、三份 `build-*.log`、`pmm-default.log`、`slub-qemu-final.log`、`slub-qemu-buddy.log`、双 GDB trace/step 日志、`environment.json` 和 `qemu-source-excerpts.txt`。`historical/` 保存原截图对应的手工 GDB 日志及早期 First-Fit 结果。截图原文件名与 SHA256 见 [images/sources.json](images/sources.json)。
-
-源码依据为官方 [QEMU 4.1.1 cpu_helper.c](https://github.com/qemu/qemu/blob/v4.1.1/target/riscv/cpu_helper.c)、[cputlb.c](https://github.com/qemu/qemu/blob/v4.1.1/accel/tcg/cputlb.c) 和 [x86 TCG 后端](https://github.com/qemu/qemu/blob/v4.1.1/tcg/i386/tcg-target.inc.c)。本轮直接读取下载归档中的对应文件并进行调试，源码定位以 environment.json 记录的实际版本为准。
-
-成员 C 的代码、报告、综合提示词、截图和验证记录已整理到本仓库 `code/` 与 `report/` 目录，并按本次要求提交至 `lab2-cheng` 分支。A/B 原始成果作为集成来源保留。
-
-仅使用用户指定目录内的 8 张原始 PowerShell/WSL 截图，分别覆盖宿主 SLUB、Bare 存储、数据读未命中、根 PTE 定位、页表单步返回、填充、第二次加载后的宿主状态和客体寄存器。未采用旧的自动 xterm 截图，也未放入只显示启动横幅、重复画面或尚在等待的截图。它们直接嵌入相关正文，图注写明原始版本；最终 Best-Fit/Buddy 运行结论以 10 月 18 日集成日志支撑。
+源码位于 `code/`，包括 SLUB、MMU 探针、宿主测试及 QEMU 调试工具。实验报告为本文件，八项任务的综合提示词见 [prompt.md](prompt.md)。本分支只保留源码、报告和提示词；编译产物、运行日志及截图不纳入提交。
 
 ---
-
 ## 六、实验总结与收获
 
 ### 6.1 对操作系统的理解
@@ -479,4 +438,4 @@ OS 原理中重要但本实验没有实现的内容包括：按需分页、缺�
 
 实现前先核对接口、页面状态和所有权约定，再按边界条件设计测试。PMM 的原始请求长度、局部变量赋值时机、TCG 快路径和调试器旁路，均通过源码和执行记录确认。
 
-报告中的工具版本、运行结果和问题处理均以保存的源码、命令输出和截图为依据；未记录的模型版本不作推测。
+报告中的工具版本、运行结果和问题处理依据实际源码分析与执行观察整理；未记录的模型版本不作推测。

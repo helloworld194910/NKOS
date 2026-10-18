@@ -1,3 +1,0 @@
-exit_code=86
-EXPECTED_OPERATION
-BUDDY_PANIC|kern/mm/buddy_pmm.c|192|assertion failed: n > 0

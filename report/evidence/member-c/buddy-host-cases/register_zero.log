@@ -1,3 +1,0 @@
-exit_code=86
-EXPECTED_OPERATION
-BUDDY_PANIC|kern/mm/buddy_pmm.c|132|assertion failed: n > 0 && n <= count - index

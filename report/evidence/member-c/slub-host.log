@@ -1,7 +1,0 @@
-slub: size boundaries, alignment, non-overlap and contents passed
-slub: reuse, cross-page growth, reclamation and failure passed
-slub_check() succeeded! free pages restored: 256
-slub: size boundaries, alignment, non-overlap and contents passed
-slub: reuse, cross-page growth, reclamation and failure passed
-slub_check() succeeded! free pages restored: 256
-host: injected PMM failure and fragmentation passed
