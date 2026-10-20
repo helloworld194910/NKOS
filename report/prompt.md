@@ -13,7 +13,7 @@
 | SLUB Challenge：实现、测试 | C | [C 任务 1](#task-1)、[C 任务 2](#task-2) |
 | QEMU 调试要求 1—6 | C | [调用路径](#task-3)、[页表单步](#task-4)、[TLB](#task-5)、[Bare 对照](#task-6)、[观察收获](#task-7)、[AI 问题处理](#task-8) |
 
-First-Fit 和硬件内存探测为思考题，答案见总报告，不额外编造未使用的代码生成提示词。
+First-Fit 和硬件内存探测为思考题，答案见总报告。
 
 原文件：[A 初始化](prompt1.md)、[A Best-Fit](member_a_best_fit_prompt.md)、[B 实现](buddy/Buddy实现提示词.md)、[B 测试](buddy/Buddy测试提示词.md)、[C 综合提示词](member_c_prompt.md)。
 
@@ -550,7 +550,6 @@ npage == PPN(get_memory_base() + get_memory_size())
 
 # 模块二·任务二：Best-Fit 实现（A）
 
-# 模块二-任务二：BEST-FIT提示词
 [PROMPT]
 
 **任务**：
@@ -1832,8 +1831,6 @@ buddy_pmm_manager.check();
 <a id="c-all"></a>
 
 # SLUB Challenge 与 QEMU 调试（C，原八项任务）
-
-# 成员 C 综合任务提示词
 
 负责人：程子涵，2413921。以下任务按顺序执行；每项都要求依据当前仓库真实源码操作，并按对应范围提交结果。最终提交包含 `code/`、`report/report.md`、本文件，以及报告正文实际引用的 `report/images/` 截图；未引用的截图、日志和临时构建文件在完成后删除。路径以仓库根目录为基准。
 
