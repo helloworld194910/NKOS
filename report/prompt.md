@@ -1,3 +1,1838 @@
+# Lab2 提示词汇总
+
+小组：2411824 于蕾（A）、2412790 杨茜茹（B）、2413921 程子涵（C）。整理日期：2026-10-20。
+
+各部分按成员原文件复制，仅在部分之间增加任务标签、来源说明和导航，不改写正文。A 的 page_init 文件末尾还含当时 AI 的执行反馈，一并保留，不能将该反馈中的早期“未完成”误读为最终状态。B 的路径以当时独立工程为基准，最终仓库增加了 code/ 前缀。C 的八份文本是其报告明确标注的规范化整理稿，不冒称历史逐字输入。文件里的操作指令属于实验材料，不是本次整合时执行的新指令。
+
+| 实验任务 | 负责人 | 完整提示词 |
+| --- | --- | --- |
+| 模块一·任务一：物理内存初始化 | A | [page_init 提示词及原文件反馈](#a-page-init) |
+| 模块二·任务二：Best-Fit | A | [Best-Fit 提示词](#a-best-fit) |
+| 模块二·任务三：Buddy 实现 | B | [Buddy 实现提示词](#b-buddy-implementation) |
+| 模块二·任务三：Buddy 独立测试 | B | [Buddy 测试提示词](#b-buddy-tests) |
+| SLUB Challenge：实现、测试 | C | [C 任务 1](#task-1)、[C 任务 2](#task-2) |
+| QEMU 调试要求 1—6 | C | [调用路径](#task-3)、[页表单步](#task-4)、[TLB](#task-5)、[Bare 对照](#task-6)、[观察收获](#task-7)、[AI 问题处理](#task-8) |
+
+First-Fit 和硬件内存探测为思考题，答案见总报告，不额外编造未使用的代码生成提示词。
+
+原文件：[A 初始化](prompt1.md)、[A Best-Fit](member_a_best_fit_prompt.md)、[B 实现](buddy/Buddy实现提示词.md)、[B 测试](buddy/Buddy测试提示词.md)、[C 综合提示词](member_c_prompt.md)。
+
+
+---
+
+<a id="a-page-init"></a>
+
+# 模块一·任务一：物理内存探测与页描述符初始化（A）
+
+[PROMPT]
+
+**任务**：
+在当前仓库 `code/kern/mm/pmm.c` 中，标有
+`//lab2 function1 YOUR CODE`
+的位置，实现完整的：
+
+```c
+static void page_init(void);
+```
+
+该函数要实现的功能为：
+根据设备树提供的物理内存信息建立可管理物理页的描述符布局，并把排除 OpenSBI、内核镜像和描述符数组占用空间后的完整空闲页面交给当前pmm_manager管理。具体为
+读取 RAM 的起点和大小，确定内核可管理的物理页范围，在内核镜像之后建立 Page 描述符数组，保留 OpenSBI、内核及描述符数组占用的页面，最后将剩余完整页面交给当前 pmm_manager 管理。
+
+本任务只实现物理内存初始化，不实现 Best-Fit，不切换当前管理器，不重新建立启动页表。
+
+**操作要求**：
+1. 必须修改工程中的真实文件，不能只在回复中展示代码或补丁。
+2. 先阅读当前工程相关源码，再实施修改，不得依据其他版本 ucore 的代码猜测接口。
+3. 仓库根目录下的目标文件是 `code/kern/mm/pmm.c`；
+   如果工作目录已经是 `code`，对应路径为 `kern/mm/pmm.c`。
+4. 只允许在目标标记处新增 page_init()，以及确有必要的文件内 static 辅助函数。
+5. 保留原有头文件包含、已有注释和其他函数。
+6. 保留 `lab2` 注释；仅在已提供真实学号时，将该标记中的
+   `YOUR CODE` 替换为该学号。未提供学号时不得编造。我的学号是2411824.
+7. 不得修改其他文件，不得修改测试，不得绕过或关闭断言。
+8. 不得修改 init_pmm_manager() 中当前管理器的选择。
+9. 不得提交或推送 Git，除非另有明确要求。
+
+**输出要求**：
+完成真实文件修改后，简要报告：
+1. 修改了哪个文件、实现了哪些函数。
+2. va_pa_offset、npage、pages 的计算依据。
+3. 描述符数组与初始空闲区的布局关系。
+4. 实际执行的验证命令、结果和未执行项目。
+5. 若验证被框架中尚未完成的 Best-Fit 模块阻塞，准确说明原因，
+   不得通过修改其他模块或测试来绕过。
+6. 若源码、作业要求和测试存在冲突，指出具体冲突及处理依据，
+   不得悄悄修改测试或放宽内存安全约束。
+
+[RELY]
+
+## 1. 必须阅读的真实文件
+
+```text
+code/kern/mm/pmm.c
+code/kern/mm/pmm.h
+code/kern/mm/memlayout.h
+code/kern/mm/mmu.h
+code/kern/driver/dtb.c
+code/kern/driver/dtb.h
+code/kern/init/entry.S
+code/kern/init/init.c
+code/libs/defs.h
+code/libs/riscv.h
+code/kern/debug/assert.h
+code/tools/kernel.ld
+code/tools/test_lab2.c
+```
+
+如果当前工程发生变化，应以实际声明核对接口。
+本任务的修改范围不能因为接口差异而自动扩大；如确需改动其他文件，
+先说明具体原因与所需改动。
+
+## 2. 当前执行环境
+
+entry.S 已经设置启动页表并开启 Sv39，再进入 kern_init()。
+
+kern_init() 先调用 dtb_init()，随后调用 pmm_init()。
+
+pmm_init() 的关键顺序是：
+
+```c
+init_pmm_manager();
+page_init();
+check_alloc_page();
+```
+
+因此：
+- page_init() 执行时已经处于分页模式。
+- 当前 pmm_manager 的 init() 已经执行。
+- page_init() 不应再次初始化管理器或开启分页。
+- 本函数只负责建立描述符布局并注册初始空闲区。
+
+## 3. 设备树提供的接口
+
+由 dtb.c、dtb.h 提供：
+
+```c
+uint64_t get_memory_base(void);
+uint64_t get_memory_size(void);
+```
+
+它们返回设备树解析出的 RAM 起点和字节数。
+解析失败时，这些信息可能为零。
+
+不得在设备树信息无效时静默使用写死的默认内存大小。
+
+## 4. 内存布局常量
+
+当前 memlayout.h 定义：
+
+```c
+#define KERNBASE                0xFFFFFFFFC0200000
+#define KMEMSIZE                0x7E00000
+#define KERNTOP                 (KERNBASE + KMEMSIZE)
+
+#define PHYSICAL_MEMORY_END     0x88000000
+#define PHYSICAL_MEMORY_OFFSET  0xFFFFFFFF40000000
+#define KERNEL_BEGIN_PADDR      0x80200000
+#define KERNEL_BEGIN_VADDR      0xFFFFFFFFC0200000
+```
+
+DRAM_BASE 由 libs/riscv.h 提供，当前为 0x80000000。
+
+这些常量表示当前平台和映射约定。
+必须使用工程常量，不能在实现中重复散布对应数值。
+
+设备树报告范围与内核管理范围不同：
+实际可管理末端不得超过 PHYSICAL_MEMORY_END。
+
+va_pa_offset 应与启动映射一致，即 PHYSICAL_MEMORY_OFFSET。
+不得简单用 KERNBASE 减去设备树 RAM 起点计算偏移：
+KERNBASE 对应的是内核物理起点，不是 DRAM 起点。
+
+## 5. 全局变量与页号约定
+
+pmm.c 已定义：
+
+```c
+struct Page *pages;
+size_t npage = 0;
+uint64_t va_pa_offset;
+const size_t nbase = DRAM_BASE / PGSIZE;
+```
+
+含义：
+
+```text
+pages：Page 描述符数组的内核虚拟地址。
+nbase：DRAM 起点对应的物理页号。
+npage：可管理物理页号的上界，不是 RAM 页面总数。
+描述符数量：npage - nbase。
+```
+
+pmm.h 已提供：
+
+```c
+static inline ppn_t page2ppn(struct Page *page);
+static inline uintptr_t page2pa(struct Page *page);
+static inline struct Page *pa2page(uintptr_t pa);
+static inline void set_page_ref(struct Page *page, int val);
+```
+
+转换关系：
+
+```text
+page2ppn(page) = page - pages + nbase
+page2pa(page)  = page2ppn(page) << PGSHIFT
+pa2page(pa)    = &pages[PPN(pa) - nbase]
+```
+
+当前 pa2page() 只检查上界。
+调用者必须保证 PPN(pa) >= nbase，避免数组下标下溢。
+
+PADDR(kva) 是已有宏：
+- 接收内核虚拟地址；
+- 返回 kva - va_pa_offset；
+- 依赖 va_pa_offset 已正确设置。
+
+KADDR 宏在当前 pmm.h 中被注释掉，不得假设它可以使用。
+
+## 6. 页面与对齐接口
+
+mmu.h 提供：
+
+```c
+#define PGSIZE  4096
+#define PGSHIFT 12
+#define PPN(la) (((uintptr_t)(la)) >> PGSHIFT)
+```
+
+libs/defs.h 提供：
+
+```c
+ROUNDUP(a, n)
+ROUNDDOWN(a, n)
+```
+
+ROUNDUP 内部存在加法。
+对不可信值或接近整数上界的数值，必须先检查溢出。
+
+memlayout.h 提供 struct Page 和页面状态宏：
+
+```c
+struct Page {
+    int ref;
+    uint64_t flags;
+    unsigned int property;
+    list_entry_t page_link;
+};
+
+SetPageReserved(page)
+ClearPageReserved(page)
+PageReserved(page)
+SetPageProperty(page)
+ClearPageProperty(page)
+PageProperty(page)
+```
+
+## 7. 内核末端和空闲区注册
+
+链接脚本提供：
+
+```c
+extern char end[];
+```
+
+end 是内核镜像末端的虚拟地址。
+
+pmm.c 已提供：
+
+```c
+static void init_memmap(struct Page *base, size_t n);
+```
+
+该函数转发至当前管理器的 init_memmap。
+
+必须先完成描述符数组初始化，再调用 init_memmap()。
+
+panic(...) 是 assert.h 中提供的宏，最终调用不返回的 __panic()。
+不要新增一个与其冲突的 panic 函数声明。
+
+[GUARANTEE]
+
+## 必须实现的接口
+
+```c
+static void page_init(void);
+```
+
+该函数必须放在 pmm_init() 之前的指定标记位置，
+使 pmm_init() 对 page_init() 的调用具有正确的声明可见性。
+
+## 必须正确建立的状态
+
+```c
+va_pa_offset
+npage
+pages
+```
+
+并完成：
+- 全部受管理物理页对应描述符的初始化；
+- 保留状态设置；
+- 非空初始空闲区的 init_memmap() 注册。
+
+## 允许修改的范围
+
+仅允许：
+- 在 pmm.c 指定标记处新增 page_init()；
+- 在同一位置新增必要的 static 辅助函数；
+- 按已提供真实学号替换本任务对应的 YOUR CODE。
+
+## 禁止修改的范围
+
+不得修改：
+- pmm.h、memlayout.h、mmu.h、defs.h 等接口及结构体；
+- dtb.c、dtb.h 的设备树解析逻辑；
+- entry.S 和链接脚本；
+- default_pmm.c、best_fit_pmm.c；
+- init_pmm_manager()、pmm_init() 和分配释放包装函数；
+- 任何现有测试、评分脚本或 Makefile。
+
+不得：
+- 使用 malloc 等宿主或动态内存分配接口；
+- 将未验证的地址当作描述符数组写入；
+- 将内核、OpenSBI 或描述符存储页交给分配器；
+- 为通过测试而硬编码空闲页数或伪造成功输出。
+
+[SPECIFICATION]
+
+## page_init 函数
+
+**Pre-Condition**：
+1. 已按当前工程流程进入内核分页执行环境。
+2. dtb_init() 已执行，但其结果仍需验证。
+3. init_pmm_manager() 已执行，当前管理器已完成内部初始化。
+4. end 由当前链接脚本提供。
+5. 当前工程采用以固定 DRAM_BASE 为基准的单段 RAM 描述符模型。
+
+**Post-Condition：成功返回时**
+1. va_pa_offset == PHYSICAL_MEMORY_OFFSET。
+2. npage 为裁剪、向下按页对齐后的可管理物理末端对应页号。
+3. npage > nbase。
+4. pages 位于 end 之后，并按 PGSIZE 对齐。
+5. 描述符数组覆盖 [nbase, npage) 的所有物理页。
+6. 描述符数组自身完整位于有效 RAM 和当前可管理范围内。
+7. 保留区域的描述符保持 PageReserved。
+8. 只有真实可用的完整页面被交给 init_memmap()。
+9. 若不存在完整空闲页，不调用 init_memmap()。
+
+**Case 1：正常 RAM 范围，存在完整空闲页**
+- 设备树报告有效 RAM 起点和大小。
+- RAM 覆盖当前框架要求的 DRAM 基址、内核和描述符存储区域。
+- 描述符数组之后至少有一个完整页面。
+- 正确建立全部描述符，调用一次 init_memmap() 注册空闲区。
+
+**Case 2：设备树信息无效**
+包括：
+- RAM 起点为零；
+- RAM 大小为零；
+- 起点加大小发生整数溢出；
+- RAM 范围不满足当前固定基址单段模型；
+- RAM 无法覆盖内核实际占用范围。
+处理：
+- 在任何依赖该范围的描述符写入或注册之前调用 panic()；
+- 不得继续使用默认值初始化；
+- 不得调用 init_memmap()。
+
+本框架的正常 RAM 起点应为 DRAM_BASE。
+对于不同起点，明确拒绝当前模型不支持的布局，
+不要擅自改变 nbase 或伪装成同一段完整 RAM。
+
+**Case 3：设备树末端超过可管理上界**
+- 原始探测末端大于 PHYSICAL_MEMORY_END。
+处理：
+- 保留原始探测范围用于输出；
+- 将实际可管理末端裁剪到 PHYSICAL_MEMORY_END；
+- npage、描述符数量和空闲区都依据裁剪后范围计算；
+- 不得登记超出上界的页面。
+
+**Case 4：RAM 末端没有按页对齐**
+- 实际可管理末端包含不完整尾页。
+处理：
+- 末端向下按 PGSIZE 对齐；
+- 不完整尾页不进入描述符管理范围或空闲区；
+- 不得通过向上对齐末端扩大 RAM 范围。
+
+**Case 5：内核末端没有按页对齐**
+处理：
+- pages 的虚拟起点取 end 向上按页对齐的地址；
+- 内核尾页及对齐间隙保持保留；
+- 不得将 end 当作物理地址直接使用。
+
+**Case 6：描述符数组无法完整放入 RAM**
+包括：
+- 描述符数量计算下溢；
+- 数量乘 sizeof(struct Page) 溢出；
+- 描述符起点加字节数溢出；
+- 描述符范围超出实际 RAM 或可管理上界。
+处理：
+- 在初始化任何描述符之前 panic()；
+- 不得先循环写入，再在末尾检查；
+- 不得缩减描述符数量来掩盖布局错误。
+
+**Case 7：描述符数组放得下，但没有完整空闲页**
+- 描述符字节范围合法；
+- 描述符末端向上按页对齐后，等于或超过可管理末端。
+处理：
+- 完成合法的描述符初始化；
+- 空闲页数保持为零；
+- 不调用 init_memmap()，尤其不传入 n == 0。
+
+此 Case 只要求 page_init() 的行为正确。
+后续默认分配器自检可能要求存在空闲页面，
+不能将它的失败误判为必须登记虚假空闲页。
+
+**Requirements**：
+
+### A. 地址与范围计算
+1. 使用半开区间 [base, end) 进行内部计算。
+2. 在计算 RAM 末端前检查加法溢出。
+3. 正确区分：
+   - 内核虚拟地址；
+   - 物理地址；
+   - 物理页号；
+   - Page 描述符地址。
+4. 不能把物理 RAM 的字节数直接赋给 npage。
+5. 设置 va_pa_offset 后，才使用依赖它的 PADDR。
+6. 用减法比较、上界检查等方式避免布局计算中的整数溢出。
+7. 在形成并解引用描述符指针前，先验证相应存储地址范围。
+
+### B. 描述符布局
+在范围验证通过后，满足以下关系：
+
+```text
+managed_end = 向下按页对齐(min(原始 RAM 末端,
+                              PHYSICAL_MEMORY_END))
+
+npage = PPN(managed_end)
+
+descriptor_count = npage - nbase
+
+pages_va = 向上按页对齐(end)
+
+descriptor_bytes = descriptor_count * sizeof(struct Page)
+
+descriptor_end_pa = PADDR(pages_va) + descriptor_bytes
+
+free_begin = 向上按页对齐(descriptor_end_pa)
+free_end   = managed_end
+```
+
+上述表达式表示布局关系，不代表可以跳过溢出和边界检查直接计算。
+
+### C. 描述符初始状态
+1. 对全部 descriptor_count 个描述符进行确定性初始化。
+2. 不得依赖描述符存储区原先已经清零。
+3. 至少将 ref、flags、property 初始化为明确状态。
+4. 所有页面最初均标记为保留，且不得遗留 PageProperty 标记。
+5. 初始空闲区由当前管理器的 init_memmap() 转换为可分配状态。
+6. page_link 的处理应符合当前管理器的使用方式，
+   不得要求其读取未初始化的链表指针。
+
+### D. 空闲区注册
+仅当 free_begin < free_end 时：
+
+```text
+free_pages_count = (free_end - free_begin) / PGSIZE
+```
+
+确认：
+- free_pages_count > 0；
+- PPN(free_begin) >= nbase；
+- 最后一个登记页仍位于描述符覆盖范围内；
+
+然后调用：
+
+```c
+init_memmap(pa2page(free_begin), free_pages_count);
+```
+
+本函数不得直接依赖 First-Fit 或 Best-Fit 的私有空闲链表和计数。
+
+### E. 输出
+使用 cprintf() 输出实际探测的 RAM 起点、大小和末端。
+如果发生裁剪，应能区分原始探测范围和实际管理范围。
+可额外输出描述符区与初始空闲区，方便手算核对。
+输出格式和参数类型必须与当前工程的 cprintf() 实现兼容。
+
+### F. 验证与现有测试限制
+1. 检查实际修改差异，确认仅修改允许范围。
+2. 在工具链可用时尝试编译，并如实报告结果。
+3. 当前 best_fit_pmm.c 尚未完成时，其测试可能因 free_list、
+   nr_free 等缺失而阻塞整项目编译。
+   不得为本任务修改该文件，也不得宣称整项目已经通过。
+4. 已有 tools/test_lab2.c 在默认内存配置下检查：
+
+```text
+npage == PPN(get_memory_base() + get_memory_size())
+```
+
+该检查没有考虑超出 PHYSICAL_MEMORY_END 后的裁剪。
+默认 128 MiB 范围内二者应一致；
+扩大 RAM 后，按作业约束裁剪可能与这条测试冲突。
+必须说明该限制，不得删除裁剪逻辑或修改测试来隐藏冲突。
+
+5. 原有正常启动测试要求空闲页数大于零，
+   不能单独覆盖“没有完整空闲页”的边界 Case。
+6. 未实际执行的边界测试，只能列出验证方案，不得写成已通过。
+
+实现完成。以下是简要报告。
+     
+  1. 修改的文件与实现的函数
+     
+  - 文件：code/kern/mm/pmm.c（唯一改动文件，git status 确认）。
+  - 函数：在 //lab2 function1 标记处实现了 static void page_init(void)，并按已提供的学号将标记替换为 //lab2 function1 2411824。
+  - 未新增其他辅助函数，未改动任何头文件、dtb.c、init_pmm_manager()、pmm_init()、测试或 Makefile。
+
+  2. va_pa_offset、npage、pages 的计算依据
+
+  - va_pa_offset = PHYSICAL_MEMORY_OFFSET（0xFFFFFFFF40000000）：与 entry.S 启动页表一致（li t1, 0xffffffffc0000000 - 0x80000000，再 sub t0, t0, t1）。不是用 KERNBASE - DRAM_BASE，因为 KERNBASE
+    对应内核物理起点 0x80200000 而非 DRAM 起点。
+  - npage = PPN(managed_end)，其中 managed_end = ROUNDDOWN(min(ram_end, PHYSICAL_MEMORY_END), PGSIZE)。默认 128 MiB 配置下 ram_end = 0x80000000 + 0x8000000 = 0x88000000 ==
+    PHYSICAL_MEMORY_END，故 npage = 0x88000（页号上界，非 RAM 页总数）。
+  - pages = (struct Page *)ROUNDUP((uintptr_t)end, PGSIZE)：end 是链接脚本 kernel.ld 提供的内核镜像末端虚拟地址，向上按页对齐后作为描述符数组的虚拟起点，物理起点 pages_pa = PADDR(pages)。      
+  
+  3. 描述符数组与初始空闲区的布局关系
+
+  [0x80000000 .. OpenSBI .. 0x80200000 .. 内核镜像 .. end]
+                                └─ pages(按页对齐) ─ descriptor_count 个 Page ─┘
+                                                                                └─ free_begin ─ managed_end(=0x88000000)
+
+  - 描述符数量 descriptor_count = npage - nbase = 0x88000 - 0x80000 = 0x8000（32768）。
+  - descriptor_bytes = descriptor_count * sizeof(struct Page)（sizeof(struct Page)=40，约 1.25 MiB）。
+  - descriptor_end_pa = pages_pa + descriptor_bytes；free_begin = ROUNDUP(descriptor_end_pa, PGSIZE)，free_end = managed_end。
+  - 全部 descriptor_count 个描述符确定性初始化（ref=0、flags=0、property=0、list_init(page_link)、SetPageReserved），使 OpenSBI、内核镜像、内核尾页、描述符数组存储页均保持保留态。
+  - 仅当 free_begin < free_end 时，以 (free_end - free_begin) / PGSIZE 页调用一次 init_memmap(pa2page(free_begin), n)。
+
+  4. 验证命令、结果与未执行项目
+
+  - pmm.c 单独编译（riscv64-linux-gnu-gcc -Wall -Werror -Wno-unused -std=gnu99 -nostdinc … -c kern/mm/pmm.c）：通过，exit=0，无警告。
+  - 整项目 make：在 best_fit_pmm.c 处失败（见下）。
+  - 未执行：QEMU 运行、make grade、以及描述符数组溢出 / 无完整空闲页 / RAM 末端不按页对齐等边界 Case 的实机验证（工具链中无 riscv64-unknown-elf-gcc，仅有 riscv64-linux-gnu-gcc，且 Best-Fit     
+    未完成）。
+
+  5. Best-Fit 模块阻塞说明
+
+  整项目编译被 kern/mm/best_fit_pmm.c 阻塞：
+
+  kern/mm/best_fit_pmm.c:24:36: error: 'free_list' undeclared
+  kern/mm/best_fit_pmm.c:28:34: error: 'nr_free' undeclared
+  kern/mm/best_fit_pmm.c:64:25: error: 'free_list' undeclared
+  kern/mm/best_fit_pmm.c:95:34: error: 'nr_free' undeclared
+  make: *** [obj/kern/mm/best_fit_pmm.o] Error 1
+
+  该文件 //lab2 function2-2 标记处尚未实现 free_list/nr_free 等私有数据结构与 best_fit_pmm_manager。按要求我未修改该文件，也未通过改动其他模块或测试来绕过，故不宣称整项目通过。
+
+  6. 源码/作业/测试冲突说明
+
+  - tools/test_lab2.c 第 3 项检查 npage == PPN(get_memory_base() + get_memory_size())，未考虑超出 PHYSICAL_MEMORY_END 后的裁剪。默认 128 MiB 下二者一致（0x88000000），不冲突；若将来扩大        
+    RAM，按作业约束裁剪后会与该测试冲突。我保留裁剪逻辑、未修改测试。
+  - test_lab2.c 不在默认 make 内核构建目标中（tools/ 不在 KSRCDIR），由 make grade 经 tools/inject.py 注入后运行，故“Page Init: PASS”需在 grader 注入并完成 Best-Fit 后才能最终验证。
+
+  实现严格遵循了 prompt1.md 的 [SPECIFICATION]：半开区间 [base, end)、加法/乘法溢出检查、设备树无效即 panic()、不向分配器提交内核/OpenSBI/描述符存储页、free_begin < free_end 才注册且不传 n ==  
+  0。
+
+
+---
+
+<a id="a-best-fit"></a>
+
+# 模块二·任务二：Best-Fit 实现（A）
+
+# 模块二-任务二：BEST-FIT提示词
+[PROMPT]
+
+**任务**：
+在当前仓库 `code/kern/mm/best_fit_pmm.c` 中，标有
+`//lab2 function2-2 YOUR CODE`
+的位置实现完整的 Best-Fit 连续物理内存分配模块，定义
+best_fit_pmm_manager，并修改 `code/kern/mm/pmm.c` 中的
+init_pmm_manager()，使内核实际使用 Best-Fit 进行分配和检查。
+
+Best-Fit 的基本策略：
+遍历空闲块，选择所有大小不小于请求页数 n 的块中最小的一个。
+从该块低地址端分配恰好 n 页，剩余页面继续作为空闲块管理。
+释放时按地址插入，并合并物理上连续的前后空闲块。
+
+本实现采用地址递增的空闲块链表：
+- 地址顺序用于定位相邻块并进行合并；
+- 分配时遍历链表比较块大小，实现 Best-Fit；
+- 多个最小适配块大小相同时，选择地址最低的块。
+
+**操作要求**：
+1. 必须修改工程中的真实文件，不能只展示代码或补丁。
+2. 实施前阅读当前工程接口、First-Fit 实现和原有 Best-Fit 测试。
+3. 仓库根目录下的路径以 `code/` 开头；
+   如果工作目录已经是 code，则使用对应的相对路径。
+4. 保持 basic_check() 和 best_fit_check() 两个测试函数原样。
+5. 保留目标文件已有的头文件包含、注释与测试。
+6. 保留 lab2 标记；已提供真实学号时，仅将本任务标记中的
+   YOUR CODE 替换为该学号。未提供时不得编造。
+7. 不修改上一任务完成的 page_init()。
+8. 不修改任何现有测试、评分脚本、Makefile 或公共接口。
+9. 不提交或推送 Git，除非另有明确要求。
+
+**输出要求**：
+完成真实文件修改后，报告：
+1. 实际修改的文件与实现的接口。
+2. 空闲链表、页面标志和计数遵循的状态约定。
+3. Best-Fit 选块、拆分和合并的实现方式。
+4. 实际执行的构建和验证命令、结果及未执行项目。
+5. 发现的问题及实际修复方式。
+6. 若实现或验证受其他任务的错误阻塞，报告具体原因，
+   不得擅自扩大修改范围或伪造通过结果。
+
+[RELY]
+
+## 1. 必须阅读的真实文件
+
+```text
+code/kern/mm/best_fit_pmm.c
+code/kern/mm/best_fit_pmm.h
+code/kern/mm/default_pmm.c
+code/kern/mm/default_pmm.h
+code/kern/mm/pmm.c
+code/kern/mm/pmm.h
+code/kern/mm/memlayout.h
+code/kern/mm/mmu.h
+code/libs/list.h
+code/libs/defs.h
+code/kern/debug/assert.h
+code/Makefile
+code/tools/test_lab2.c
+```
+
+注意：链表接口实际位于 libs/list.h，不是 kern/libs/list.h。
+
+若当前源码与下述信息存在差异，先核对真实接口。
+不得因差异自动扩大修改范围。
+
+## 2. 管理器接口
+
+pmm.h 已定义：
+
+```c
+struct pmm_manager {
+    const char *name;
+    void (*init)(void);
+    void (*init_memmap)(struct Page *base, size_t n);
+    struct Page *(*alloc_pages)(size_t n);
+    void (*free_pages)(struct Page *base, size_t n);
+    size_t (*nr_free_pages)(void);
+    void (*check)(void);
+};
+```
+
+本实现按 First-Fit 和现有测试的使用方式：
+每次成功申请恰好 n 个连续页面，释放时按传入的 n 记账。
+不得将请求向其他大小取整。
+
+## 3. 页面和空闲区结构
+
+memlayout.h 已提供：
+
+```c
+struct Page {
+    int ref;
+    uint64_t flags;
+    unsigned int property;
+    list_entry_t page_link;
+};
+
+typedef struct {
+    list_entry_t free_list;
+    unsigned int nr_free;
+} free_area_t;
+```
+
+页面状态接口包括：
+
+```c
+SetPageReserved(page)
+ClearPageReserved(page)
+PageReserved(page)
+
+SetPageProperty(page)
+ClearPageProperty(page)
+PageProperty(page)
+
+le2page(le, member)
+```
+
+状态含义：
+- PageReserved 为真：该页不可交给普通分配器使用。
+- PageProperty 为真：该页是空闲块的头页。
+- 空闲块头页的 property 表示块内连续页面总数。
+- 空闲块内部页不应设置 PageProperty。
+- 已分配页面不应设置 PageProperty。
+- property 只有在 PageProperty 为真时才有块长度语义，
+  不得依赖已分配页面中残留的 property 值判断分配状态。
+
+## 4. 链表接口
+
+libs/list.h 提供：
+
+```text
+list_init
+list_add
+list_add_before
+list_del
+list_empty
+list_next
+list_prev
+```
+
+使用前核对真实函数签名与插入语义。
+
+## 5. 页接口与公共包装函数
+
+pmm.h、pmm.c 提供：
+
+```c
+static inline int page_ref(struct Page *page);
+static inline void set_page_ref(struct Page *page, int val);
+static inline uintptr_t page2pa(struct Page *page);
+static inline struct Page *pa2page(uintptr_t pa);
+
+struct Page *alloc_pages(size_t n);
+void free_pages(struct Page *base, size_t n);
+size_t nr_free_pages(void);
+```
+
+以及：
+
+```c
+#define alloc_page() alloc_pages(1)
+#define free_page(page) free_pages(page, 1)
+```
+
+公共包装函数会转发给当前 pmm_manager。
+因此 Best-Fit 管理函数内部不得调用同名公共包装函数来实现自身，
+否则会递归进入当前管理器。
+
+## 6. 原有测试约定
+
+best_fit_pmm.c 已包含：
+
+```c
+static void basic_check(void);
+static void best_fit_check(void);
+```
+
+两个函数的实际定义必须保持原样。
+
+它们直接引用：
+
+```c
+free_list
+nr_free
+```
+
+并通过以下方式临时隔离空闲状态：
+
+```c
+list_entry_t free_list_store = free_list;
+list_init(&free_list);
+
+unsigned int nr_free_store = nr_free;
+nr_free = 0;
+```
+
+测试结束后再恢复原有状态。
+
+因此：
+- 必须提供测试所需的同名状态。
+- 不得额外依赖测试无法同步保存和恢复的空闲索引、缓存计数或隐藏状态。
+- 不得在分配失败路径中假设 nr_free > 0 就一定存在可用链表节点。
+- 不得添加会破坏测试临时隔离流程的全局一致性断言。
+
+best_fit_check() 中已有明确的 Best-Fit 案例：
+先形成较低地址的 2 页空闲块和较高地址的 1 页空闲块，
+申请 1 页时必须选择后者。
+
+## 7. 注册声明和接入点
+
+best_fit_pmm.h 已声明：
+
+```c
+extern const struct pmm_manager best_fit_pmm_manager;
+```
+
+pmm.c 已包含该头文件。
+
+init_pmm_manager() 当前选择管理器后，会打印名称并调用 init()。
+本任务只修改其中的管理器选择，不改变后续调用顺序。
+
+[GUARANTEE]
+
+## 必须实现的状态
+
+在 best_fit_pmm.c 的指定实现区域提供：
+
+```c
+static free_area_t free_area;
+
+#define free_list (free_area.free_list)
+#define nr_free   (free_area.nr_free)
+```
+
+## 必须实现的接口
+
+```c
+static void best_init(void);
+
+static void best_init_memmap(struct Page *base, size_t n);
+
+static struct Page *best_alloc_pages(size_t n);
+
+static void best_free_pages(struct Page *base, size_t n);
+
+static size_t best_nr_free_pages(void);
+
+const struct pmm_manager best_fit_pmm_manager;
+```
+
+允许添加文件内部的 static 辅助函数。
+
+由于 best_fit_check() 定义在实现标记之后，
+注册结构引用它之前必须存在正确的静态前向声明：
+
+```c
+static void best_fit_check(void);
+```
+
+不得为解决声明顺序修改测试函数定义或删除 static。
+
+## 必须修改的接入点
+
+在 pmm.c 的 init_pmm_manager() 中设置：
+
+```c
+pmm_manager = &best_fit_pmm_manager;
+```
+
+保留打印和 init() 调用。
+
+## 允许修改的范围
+
+1. best_fit_pmm.c 的指定实现区域：
+   添加状态、声明、辅助函数、管理函数和注册结构。
+2. pmm.c 的 init_pmm_manager()：
+   仅修改当前管理器的选择。
+
+## 禁止修改的范围
+
+不得修改：
+- basic_check()、best_fit_check() 的任何内容；
+- page_init()；
+- default_pmm.c；
+- 公共头文件、结构体和函数签名；
+- Makefile、链接脚本、启动代码、设备树代码；
+- tools 下的现有测试和评分脚本。
+
+不新增跨文件公共接口，不引入动态内存分配依赖。
+
+[SPECIFICATION]
+
+## 一、模块状态不变量
+
+正常管理状态下必须满足：
+1. free_list 为双向循环链表。
+2. 链表仅包含空闲块头页的 page_link。
+3. 空闲块按物理地址递增排列。
+4. 各空闲块互不重叠。
+5. 完成释放合并后，不存在两个仍可合并的相邻空闲块。
+6. 每个空闲块头页满足：
+   - PageReserved 为假；
+   - PageProperty 为真；
+   - property > 0。
+7. 空闲块内部页的 PageProperty 为假。
+8. nr_free 等于链表中所有空闲块 property 的总和。
+
+现有测试在隔离状态的中间步骤可能暂时不满足第 8 条。
+实现必须兼容这些已提供的测试步骤，
+不得在所有函数入口无条件扫描并断言该不变量。
+
+## 二、best_init()
+
+**Pre-Condition**：
+- 模块开始一次新的初始化。
+- 尚未登记本轮初始空闲区域。
+
+**Post-Condition**：
+- free_list 为空的双向循环链表。
+- nr_free == 0。
+
+**Requirements**：
+- 调用 list_init()。
+- 不访问物理页内容，不调用分配接口。
+- 不登记初始空闲区；登记由 best_init_memmap() 完成。
+
+## 三、best_init_memmap(base, n)
+
+**Pre-Condition**：
+- best_init() 已执行。
+- n > 0。
+- [base, base + n) 为合法的连续描述符范围。
+- 对应页面均处于保留状态。
+- 此范围不与已经登记的空闲块重叠。
+- 正常调用来自 page_init()，只包含真正可用的完整物理页。
+
+**Post-Condition**：
+- 这 n 页转为可分配页面。
+- 每页 ref 为 0。
+- 每页保留标志被清除。
+- 最终空闲块头正确设置 PageProperty 和 property。
+- nr_free 增加 n，且只增加一次。
+- 链表保持地址有序。
+
+**Case 1：空链表**
+- 将此区间作为初始空闲块插入。
+
+**Case 2：非空链表，区间与既有块不相邻**
+- 按地址插入为独立空闲块。
+
+**Case 3：区间与前块或后块相邻**
+- 合并连续区间，清除被吞并块头的 PageProperty，
+  移除相应链表节点，保证总页数不变。
+
+**Case 4：n == 0 或输入页不是保留页**
+- 使用与参考实现一致的断言拒绝非法调用。
+- 不得将非法区间加入链表。
+
+**Requirements**：
+- 先检查前置约束，再修改页面状态。
+- 初始化 flags、ref 和 property，避免依赖旧值。
+- 避免链表插入后继续遍历导致重复插入或死循环。
+- 如复用释放函数或内部辅助函数，必须说明状态转换合法，
+  并避免 nr_free 重复累加。
+
+## 四、best_alloc_pages(n)
+
+**Pre-Condition**：
+- n > 0。
+- 模块已初始化。
+- 除框架测试明确采用的临时隔离状态外，
+  空闲链表与计数满足模块不变量。
+
+**Post-Condition：成功时**
+- 返回被选空闲块低地址端的头页。
+- 调用者获得恰好 n 个连续页面。
+- 被分配范围不再属于空闲链表。
+- 被分配范围不存在 PageProperty 标记。
+- nr_free 减少 n。
+- 剩余空闲块仍按地址有序。
+
+**Case 1：存在恰好 n 页的块**
+- 优先选取恰好匹配的块。
+- 多个同样大小的块中选择地址最低者。
+- 将其移出空闲链表，不产生余块。
+
+**Case 2：没有恰好匹配，但存在更大的块**
+- 在所有 property >= n 的块中选择 property 最小者。
+- 同样大小时选择地址最低者。
+- 从头部分配 n 页。
+- 余块头为 page + n，大小为原块大小减 n。
+- 余块设置 PageProperty，并保持链表地址顺序。
+
+**Case 3：n > nr_free**
+- 返回 NULL。
+- 链表、计数和页面状态不变。
+
+**Case 4：总空闲页数足够，但没有足够大的连续块**
+- 返回 NULL。
+- 不得拼接不连续页面。
+- 链表、计数和页面状态不变。
+
+**Case 5：链表为空**
+- 返回 NULL。
+- 即使框架测试尚未同步将 nr_free 清零，也必须安全处理，
+  不得解引用链表哨兵。
+
+**Case 6：n == 0**
+- 断言失败。
+
+**Requirements**：
+- 找到第一个足够大的块后不能直接停止，
+  除非该块大小已经恰好等于 n。
+- 拆分前保存原块长度与必要链表位置。
+- 正确移除原块头，正确插入余块。
+- ClearPageProperty() 作用于分配块头。
+- 失败路径不得提前扣减 nr_free 或修改链表。
+- 不修改调用者已分配页面的数据内容。
+
+## 五、best_free_pages(base, n)
+
+**Pre-Condition**：
+- n > 0。
+- [base, base + n) 为合法连续描述符范围。
+- 页面当前属于调用者，未被释放。
+- 页面不是保留页。
+- 范围内各页不存在 PageProperty 标记。
+- 允许释放一个较大已分配区间中的合法子区间，
+  不得要求 base 必须是原始申请的起点。
+
+**Post-Condition**：
+- n 页重新进入空闲集合。
+- 每页 ref 为 0，页面标志恢复为正确空闲状态。
+- nr_free 增加 n，且只增加一次。
+- 新区间与相邻空闲块完成合并。
+- 合并后仅最终块头具有 PageProperty。
+- 链表保持地址递增。
+
+**Case 1：空链表**
+- 新建一个 n 页空闲块。
+
+**Case 2：与前后块均不相邻**
+- 按地址插入，不合并。
+
+**Case 3：仅与前块相邻**
+- 前块长度增加 n。
+- 新区间头不再作为独立空闲块头。
+
+**Case 4：仅与后块相邻**
+- 新区间头作为合并后块头。
+- 长度增加后块长度。
+- 清除后块头标记并移除其节点。
+
+**Case 5：同时与前后块相邻**
+- 合并成一个完整空闲块。
+- 合并前块后，更新当前块指针，
+  再判断更新后的块与后块是否相邻。
+
+**Case 6：n == 0**
+- 断言失败。
+
+**Case 7：保留页或范围内已有空闲块头**
+- 按参考实现的页面状态检查方式断言失败。
+- 不得把这类明显非法输入登记为空闲页。
+
+**Requirements**：
+- 用描述符连续性判断相邻关系，例如：
+
+```c
+previous + previous->property == base
+base + base->property == next
+```
+
+- 只有地址连续才合并，不能仅因链表相邻就合并。
+- 合并时不再次增加 nr_free。
+- 不引入原始分配大小表或其他跨调用隐藏状态。
+- 页面状态断言不是完整的非法释放检测机制；
+  不得宣称已能检测所有重复释放或任意错误指针。
+
+## 六、best_nr_free_pages()
+
+**Pre-Condition**：
+- 模块已初始化。
+
+**Post-Condition**：
+- 返回当前 nr_free 的值。
+
+**Requirements**：
+- 不修改链表、计数或页面状态。
+- 不调用公共 nr_free_pages()，避免递归。
+- 返回类型保持为 size_t。
+
+## 七、best_fit_pmm_manager 注册
+
+**Pre-Condition**：
+- 所需管理函数已实现或已正确声明。
+- best_fit_check() 在注册结构之前有静态前向声明。
+
+**Post-Condition**：
+定义：
+
+```c
+const struct pmm_manager best_fit_pmm_manager = {
+    .name = "best_fit_pmm_manager",
+    .init = best_init,
+    .init_memmap = best_init_memmap,
+    .alloc_pages = best_alloc_pages,
+    .free_pages = best_free_pages,
+    .nr_free_pages = best_nr_free_pages,
+    .check = best_fit_check,
+};
+```
+
+**Requirements**：
+- 与 best_fit_pmm.h 的 extern 声明一致。
+- check 指向原有 best_fit_check()。
+- 不新增替代测试，不把 check 设置为空函数。
+
+## 八、内核接入
+
+在 pmm.c 的 init_pmm_manager() 中选择：
+
+```c
+pmm_manager = &best_fit_pmm_manager;
+```
+
+保留原有：
+- 管理器名称打印；
+- pmm_manager->init() 调用；
+- 后续 page_init() 和分配器检查顺序。
+
+---
+
+<a id="b-buddy-implementation"></a>
+
+# 模块二·任务三：Buddy 实现与可选接入（B，第一份）
+
+[PROMPT]
+
+**任务**
+
+在当前 Lab2 工程中，从零实现 Buddy System 连续物理页分配模块，并接入现有 `pmm_manager` 框架。
+
+目标文件：
+- 新增 `kern/mm/buddy_pmm.c`。
+- 新增 `kern/mm/buddy_pmm.h`。
+- 在 `kern/mm/pmm.c` 中添加 Buddy 管理器的可选接入。
+- 在 `Makefile` 中添加 `BUDDY=1` 构建选项。
+- 新增 `docs/buddy_design.md`，记录设计契约、接入方法和实际验证结果。
+
+Buddy 将空闲页组织成包含 2^order 个连续物理页的块。分配时应选择能够容纳请求的最小可用阶；必要时分裂较大的块。释放时只允许与同阶、空闲且满足伙伴关系的块合并，并允许递归合并。
+
+必须遵守以下分配契约：
+- 请求 n 页，实际占用能够容纳 n 的最小二次幂页数。
+- 例如请求 3 页，实际占用 4 页，空闲页数减少 4。
+- 释放时调用 `free_pages(base, n)`，其中 n 必须是原始申请页数。
+- 模块记录并核对原始申请长度和实际占用块大小。
+- 不支持部分释放、重复释放、非块首地址释放或使用错误长度释放。
+- 对齐与伙伴关系以绝对物理页号为基准，不能直接用描述符数组下标代替物理页号。
+- 初始空闲区的起点和长度不要求满足二次幂对齐，必须完整管理其中的页面。
+
+**操作要求**
+
+你必须读取当前工程，并修改或新增真实文件，不能仅在回答中展示代码。
+
+开始修改前：
+- 查看 Git 状态，保留用户已有修改。
+- 核对下述依赖与工程实际定义。
+- 阅读 `default_pmm.c` 理解框架调用和页面状态，但不要将 First-Fit 改名后当作 Buddy。
+
+允许修改的范围：
+- 上述两个 Buddy 文件。
+- `pmm.c` 中必要的头文件包含和 `init_pmm_manager()` 选择逻辑。
+- Makefile 中与 `BUDDY=1` 有关的编译配置。
+- `docs/buddy_design.md`。
+
+禁止修改：
+- `page_init()` 及其待实现位置，这是另一位成员的任务。
+- `struct Page`、`struct pmm_manager` 及公共地址转换接口。
+- `default_pmm.c`、`best_fit_pmm.c` 中已有实现和测试。
+- `tools/test_lab2.c`、`tools/inject.py`、`tools/grade.sh`。
+- 启动汇编、链接脚本、设备树解析等无关模块。
+- 不得删除、覆盖已有工作，不得自行提交、推送或回滚 Git。
+
+如果发现必须修改允许范围以外的文件，先说明具体原因和最小修改需求，不要自行扩大范围。
+
+**输出与验证要求**
+
+- 完成真实文件修改。
+- 使用 `BUDDY=1` 显式选择 Buddy；未指定时保留当前默认管理器选择。
+- 不在本任务中替另一位成员实现或切换 Best-Fit。
+- 当前默认管理器可能仍是 First-Fit；最终集成时默认 Best-Fit 是后续工作。
+- 本轮提供管理器 `.check` 所需的基础检查；完整行为测试由后续独立提示词完成。
+- 核对生成文件是否被实际构建系统纳入。
+- 尝试完成当前条件允许的编译和验证。
+- 若 `page_init()` 缺失导致全工程无法构建或启动，不得补写它；应明确报告阻塞，并独立检查 Buddy 编译单元。
+- 未实际运行的检查标为“未执行”，不得报告完整内核或测试已通过。
+- 不得修改测试断言来迁就错误实现。
+
+完成后说明：
+1. 修改和新增了哪些文件。
+2. 使用了什么数据结构，如何记录申请和实际块大小。
+3. 如何定义伙伴、处理不规整初始区间及防止非法释放。
+4. 启用 Buddy、恢复默认配置的命令。
+5. 实际执行的命令、结果和未完成验证。
+6. 已知限制及需要 A 提供的依赖。
+
+[RELY]
+
+以下是当前框架的最小依赖。先核对实际文件；若存在差异，报告差异并以真实工程为准，不能修改公共接口来迎合提示词。
+
+**物理内存管理接口：`kern/mm/pmm.h`**
+
+```c
+struct pmm_manager {
+    const char *name;
+    void (*init)(void);
+    void (*init_memmap)(struct Page *base, size_t n);
+    struct Page *(*alloc_pages)(size_t n);
+    void (*free_pages)(struct Page *base, size_t n);
+    size_t (*nr_free_pages)(void);
+    void (*check)(void);
+};
+
+extern const struct pmm_manager *pmm_manager;
+
+struct Page *alloc_pages(size_t n);
+void free_pages(struct Page *base, size_t n);
+size_t nr_free_pages(void);
+
+#define alloc_page() alloc_pages(1)
+#define free_page(page) free_pages(page, 1)
+```
+
+`pmm.c` 中的公共分配、释放、计数函数转发到当前管理器。
+
+初始化调用关系：
+`init_pmm_manager()` 调用管理器的 `init()`；
+随后 `page_init()` 通过当前管理器的 `init_memmap()` 登记空闲区；
+最后调用管理器的 `check()`。
+
+**页描述符：`kern/mm/memlayout.h`**
+
+```c
+struct Page {
+    int ref;
+    uint64_t flags;
+    unsigned int property;
+    list_entry_t page_link;
+};
+```
+
+框架提供：
+- `PageReserved`、`SetPageReserved`、`ClearPageReserved`。
+- `PageProperty`、`SetPageProperty`、`ClearPageProperty`。
+- `le2page`。
+
+`PageReserved` 表示保留页，不能交给普通分配。
+Buddy 的空闲块首描述符应设置 `PageProperty`，其 `property`
+表示块的实际页数；非空闲块首描述符不得残留该标志。
+
+**页号与地址：`pmm.h`、`pmm.c`、`mmu.h`**
+
+```c
+extern struct Page *pages;
+extern size_t npage;
+extern const size_t nbase;
+extern uint64_t va_pa_offset;
+
+static inline ppn_t page2ppn(struct Page *page);
+static inline uintptr_t page2pa(struct Page *page);
+static inline struct Page *pa2page(uintptr_t pa);
+static inline int page_ref(struct Page *page);
+static inline void set_page_ref(struct Page *page, int val);
+```
+
+- `PGSIZE` 为 4096，`PGSHIFT` 为 12。
+- 描述符数组覆盖物理页号 `[nbase, npage)`。
+- `page2ppn(page)` 对应 `page - pages + nbase`。
+- `npage` 是物理页号上界，不是描述符数量。
+- 描述符数量是 `npage - nbase`。
+- 当前 `pa2page()` 不负责检查低于 `nbase` 的输入，
+  Buddy 不能依靠它替代完整范围检查。
+- 当前 `KADDR` 定义被注释，不可假设它能直接使用。
+- 内存上界与偏移以 `memlayout.h` 真实常量为准。
+
+**通用支持**
+
+- 链表在 `libs/list.h`，不是 `kern/libs/list.h`。
+- 类型和辅助宏在 `libs/defs.h`。
+- `assert`、`panic` 在 `kern/debug/assert.h` 中提供，其中
+  `panic` 是宏，不应自行重声明为普通函数。
+- `cprintf` 在 `libs/stdio.h` 中声明。
+- Makefile 已扫描 `kern/mm` 下的 C 文件，应核对新增模块是否自动纳入。
+
+[GUARANTEE]
+
+**必须实现的接口**
+
+`kern/mm/buddy_pmm.c`：
+
+```c
+static void buddy_init(void);
+static void buddy_init_memmap(struct Page *base, size_t n);
+static struct Page *buddy_alloc_pages(size_t n);
+static void buddy_free_pages(struct Page *base, size_t n);
+static size_t buddy_nr_free_pages(void);
+static void buddy_check(void);
+
+const struct pmm_manager buddy_pmm_manager;
+```
+
+注册结构要求：
+- `.name = "buddy_pmm_manager"`。
+- 各函数指针分别指向对应 Buddy 函数。
+- `.check = buddy_check`。
+
+`kern/mm/buddy_pmm.h`：
+- 使用头文件保护。
+- 声明 `extern const struct pmm_manager buddy_pmm_manager`。
+
+**内部状态要求**
+
+可以添加模块私有的静态变量、辅助函数和元数据结构。
+
+需要可靠记录：
+- 被登记管理的页面范围。
+- 各阶空闲块。
+- 当前实际空闲页总数。
+- 每个存活分配的起点、原始请求页数和实际块大小。
+- 检查伙伴是否为同阶空闲块所需的信息。
+
+不得使用尚不存在的 `malloc`、SLUB 或页分配接口为自身初始化
+分配元数据，避免循环依赖。
+
+若采用静态元数据，容量必须覆盖当前框架允许管理的物理页，
+初始化时检查容量；不得静默截断或使用大型内核栈数组。
+
+**接入要求**
+
+- `make BUDDY=1` 选择 Buddy。
+- 未指定时保留现有选择。
+- 两种配置都保留 `pmm_manager->init()` 和现有管理器名称输出。
+- 切换配置后须干净构建，运行说明要写明这一点。
+- 不增加与本任务无关的公共接口。
+
+[SPECIFICATION]
+
+## 全局不变量
+
+在完成每次合法操作后：
+- 每个已登记页面恰好属于一个空闲块或一个存活分配。
+- 不存在重叠的空闲块或重叠的存活分配。
+- 空闲块大小为二次幂，并按绝对物理页号满足块大小对齐。
+- 同一空闲块只出现在对应阶的管理结构中一次。
+- 可合并的同阶空闲伙伴最终应合并。
+- 空闲页计数等于所有空闲块实际页数之和。
+- 保留页、未登记页不能被分配或合并进入空闲块。
+- 失败操作不得破坏已有合法状态。
+
+## buddy_init
+
+**Pre-Condition**
+- 由框架选择管理器后、登记空闲区前调用。
+- 不要求此时 `pages` 和 `npage` 已完成初始化。
+
+**Post-Condition**
+- 管理结构为空，空闲页数为 0。
+- 没有已登记区间和存活分配记录。
+
+**Requirements**
+- 不依赖页分配接口或尚未建立的页描述符布局。
+- 正常框架生命周期仅在登记前初始化；
+  不要求支持带存活分配时重新初始化。
+
+## buddy_init_memmap
+
+**Pre-Condition**
+- `buddy_init()` 已完成。
+- `pages`、`npage` 已正确建立。
+- 输入是 `[nbase, npage)` 内连续、尚未登记的保留页面。
+- 登记操作不与其他分配或释放并发执行。
+
+**Case 1 正常登记**
+- `n > 0` 且区间合法。
+- 登记全部 n 页，空闲页数恰好增加 n。
+- 起点或长度不规整时仍不丢页、不越界。
+- 清除新登记页的保留状态，引用计数置 0。
+- 支持多次登记互不重叠的区间。
+- 若不同登记区间形成合法的空闲伙伴，允许并完成合并。
+
+**Case 2 非法输入**
+- n 为 0、区间越界、重复或重叠登记、元数据容量不足。
+- 通过断言或 panic 终止，给出可定位原因。
+- 在修改管理状态前完成必要的输入验证。
+
+**Requirements**
+- 不得把两段之间未登记的空洞纳入管理。
+- 检查区间大小时避免加法溢出。
+
+## buddy_alloc_pages
+
+**Pre-Condition**
+- 管理器已初始化，初始空闲区已登记。
+- 当前状态满足全局不变量。
+
+**Case 1 成功**
+- n > 0，向上取整得到实际页数 k，k 为最小的满足 k >= n 的二次幂。
+- 从所有可满足请求的空闲块中，选择最小可用阶。
+- 返回实际 k 页连续块的首描述符。
+- 首物理页号按 k 对齐。
+- 分配区间全部来自已登记空闲页。
+- 实际空闲页数减少 k。
+- 保存原始 n 与实际 k，供释放验证。
+- 分配块的所有页不带空闲块首标志，引用计数为 0。
+- 剩余空闲空间继续满足全局不变量。
+- 同阶多个块的选择次序由实现决定，不强制地址优先。
+
+**Case 2 资源不足**
+- 总空闲页不足，或不存在能够形成目标块的可用空间。
+- 返回 NULL，管理结构、计数和已有分配记录不变。
+
+**Case 3 请求过大**
+- 请求超过管理能力，或向上取整会溢出。
+- 返回 NULL，状态不变，不能发生非法移位或死循环。
+
+**Case 4 n 为 0**
+- 断言失败，在修改状态前报告非法请求。
+- 此情况是对合法调用前置条件的防御检查。
+
+## buddy_free_pages
+
+**Pre-Condition**
+- 管理器已初始化。
+- 合法释放使用本管理器返回的分配首地址和原始申请页数。
+- 不要求支持部分释放。
+
+**Case 1 合法释放**
+- 输入准确匹配一个当前存活分配。
+- 释放其全部实际 k 页，空闲页数恰好增加 k。
+- 清除该存活分配记录。
+- 只与同阶、空闲、已登记且满足物理页号伙伴关系的块合并。
+- 合并后仍有合法伙伴时继续合并。
+- 不能仅因两个块相邻就合并。
+- 释放完成后满足全局不变量。
+
+**Case 2 非法释放**
+- n 为 0、NULL、区间外地址、非块首地址、错误申请长度、
+  重复释放、保留页或未登记页释放。
+- 使用断言或 panic 终止，给出可定位原因。
+- 必须先验证再修改状态，不能先破坏链表或计数后报错。
+
+**Requirements**
+- 区间外指针不得先解引用或做无效的描述符指针运算再检查。
+- 不得触及实际分配块以外的页面。
+
+## buddy_nr_free_pages
+
+**Pre-Condition**
+- `buddy_init()` 已完成。
+
+**Post-Condition**
+- 返回按实际页数计算的空闲页总数。
+
+**Requirements**
+- 不改变状态。
+- 不把块数、可满足请求的次数或原始请求页数当作空闲页数。
+
+## buddy_check
+
+**Pre-Condition**
+- 已完成正常内核初始化和空闲区登记。
+
+**Post-Condition**
+- 检查当前各阶块大小、物理页号对齐、计数一致性、
+  区间合法性和可合并伙伴是否遗漏等结构不变量。
+- 检查通过后输出明确的 Buddy 基础检查成功信息。
+- 检查失败通过断言或 panic 报告。
+- 检查前后管理器状态不变。
+
+**Requirements**
+- 本轮完成基础结构检查，不宣称替代后续完整行为测试。
+- 不调用 First-Fit 或 Best-Fit 的私有测试。
+- 不伪造通过信息。
+- 运行成本可接受即可，本实验不要求优化时空复杂度。
+
+## 当前实验范围
+
+- 以当前实验的单核、串行管理器调用场景实现。
+- 不增加多核锁、换页、虚拟页分配等额外功能。
+- 不修改公共页描述符结构。
+- 正常分配和释放避免大量输出；管理器选择与检查输出
+  应能够确认运行的是 Buddy。
+- 若初始化依赖未完成，记录阻塞并保留模块实现，
+  不以临时伪实现掩盖完整运行尚未验证的事实。
+
+
+---
+
+<a id="b-buddy-tests"></a>
+
+# 模块二·任务三：Buddy 独立测试（B，第二份）
+
+[PROMPT]
+
+**任务**
+
+为当前 Lab2 工程已经实现的 Buddy System 设计并实现独立测试。
+
+被测模块：
+- `kern/mm/buddy_pmm.c`
+- `kern/mm/buddy_pmm.h`
+
+新增测试文件放在：
+- `tools/buddy_host/`：宿主测试入口、必要的平台适配和运行脚本。
+- `docs/buddy_test.md`：测试设计、预期结果、运行方法及实际验证记录。
+
+允许在 Makefile 中添加独立的 `buddy-host-test` 目标。
+
+测试应在 WSL 的宿主 Linux 上使用原生 GCC 执行，直接编译、
+链接真实的 `kern/mm/buddy_pmm.c`，通过
+`buddy_pmm_manager` 的接口验证算法。
+
+本阶段使用模拟 Page 描述符数组和真实 Buddy 算法，不启动
+QEMU，不依赖尚未实现的 `page_init()`。
+
+本阶段通过不能被表述为完整内核或真实物理内存访问已经验证。
+
+**操作要求**
+
+必须修改或新增实际文件，不能仅展示测试代码。
+
+开始前读取：
+- 当前 Buddy 实现和头文件。
+- `pmm.h`、`memlayout.h`、`mmu.h`、`defs.h`、`list.h`。
+- 当前 Makefile。
+- `docs/buddy_design.md`。
+
+允许修改：
+- `tools/buddy_host/` 中新增的测试与适配文件。
+- Makefile 中与宿主测试有关的独立规则。
+- `docs/buddy_test.md`。
+
+禁止修改：
+- Buddy 算法及其私有状态。
+- `pmm.c`、`page_init()`。
+- 公共结构体、接口、宏和地址转换。
+- 原有 First-Fit、Best-Fit 代码与测试。
+- 原有评分脚本、启动汇编和链接脚本。
+- 已有设计文档中的历史验证记录。
+
+如果测试发现实现问题：
+- 保留能复现问题的测试。
+- 记录输入、预期、实际结果和复现命令。
+- 不降低断言标准，不在本任务中修改分配算法。
+- 明确报告失败，交由后续修复迭代处理。
+
+保留用户已有改动，不自动提交、推送或回滚 Git。
+
+**测试原则**
+
+- 通过公开的 `buddy_pmm_manager` 回调进行操作。
+- 不包含被测 `.c` 文件来访问其 static 数据。
+- 不直接读取或修改 `records`、`order_lists`、`free_count` 等私有变量。
+- 不复制或重写 Buddy 算法。
+- 允许提供模拟 `pages/npage/nbase` 和必要的平台符号。
+- 使用独立的期望值、手算案例和存活区间记录判断正确性。
+- 正常与异常场景均应有自动判定。
+- 测试需要确定、可复现，不能依赖人工观察“似乎正常”。
+
+**输出与验证要求**
+
+完成后交付：
+1. 实际新增和修改文件列表。
+2. 一条可重复运行全部宿主测试的命令：
+   `make buddy-host-test`。
+3. 每个用例的明确 PASS/FAIL，以及总结果。
+4. 未通过时返回非零状态，不得通过管道或脚本掩盖失败。
+5. 覆盖矩阵：每项设计要求对应哪些测试。
+6. 实际执行的命令、输出摘要和环境。
+7. 尚未覆盖的内容及后续 QEMU 联调事项。
+
+若宿主工具不可执行，保留测试文件，明确标为未运行，
+提供用户可执行的命令，不虚构结果。
+
+[RELY]
+
+**真实管理器接口**
+
+由 `kern/mm/buddy_pmm.h` 声明：
+
+```c
+extern const struct pmm_manager buddy_pmm_manager;
+```
+
+通过以下回调调用被测实现：
+
+```c
+buddy_pmm_manager.init();
+buddy_pmm_manager.init_memmap(base, n);
+buddy_pmm_manager.alloc_pages(n);
+buddy_pmm_manager.free_pages(base, n);
+buddy_pmm_manager.nr_free_pages();
+buddy_pmm_manager.check();
+```
+
+各成员的真实签名以 `kern/mm/pmm.h` 为准。
+
+**当前分配契约**
+
+- 请求 n 页，实际占用最小的、能够容纳 n 的二次幂页数 k。
+- 释放时传原始请求 n，而不是实际块大小 k。
+- 计数按实际占用 k 变化。
+- 同阶块的选择次序未约定，不得断言一定返回最低地址。
+- 初始区间可不规整，可以分多次登记。
+- 伙伴关系以绝对物理页号为基准。
+- 空闲块首带 `PageProperty`，property 为块的实际页数。
+- 已分配页面不带空闲块首标志。
+- 不支持部分释放、错误长度、重复释放及非首地址释放。
+- 非法输入触发 assert/panic；普通分配失败返回 NULL。
+- `.check` 进行基础不变量检查。
+- 当前只考虑串行操作。
+
+**框架语义**
+
+- `pages` 是 Page 描述符数组起点。
+- `nbase` 是 DRAM 起始物理页号。
+- `npage` 是物理页号上界。
+- 描述符数量为 `npage - nbase`。
+- `page2ppn(p)` 对应 `p - pages + nbase`。
+- `page2pa()` 返回物理地址数值，宿主测试不能把它当宿主指针解引用。
+- 页面大小由 `PGSIZE` 定义。
+- 通过真实 Page 状态宏建立初始保留页状态。
+- 相关类型与宏来自真实工程头文件，不得在测试中重新定义另一套。
+
+**宿主适配约束**
+
+- 宿主测试使用原生 GCC，不使用 RISC-V 交叉编译器生成宿主程序。
+- 不执行 RISC-V 特权指令，不调用 SBI。
+- 可以提供 `cprintf` 和断言所需的 `__panic` 平台实现。
+- 适配代码只处理输出和进程终止，不实现分配逻辑。
+- `panic` 是框架宏，应适配其调用的真实函数，
+  不能通过替换 assert 或 panic 宏跳过检查。
+- 工程自定义 `size_t` 等类型可能与宿主标准头冲突；
+  应隔离平台适配编译单元或采取兼容的构建组织方式，
+  不修改公共头文件来解决。
+- 不复用内核 obj 目录中的 RISC-V 对象文件。
+- 宿主产物放在独立子目录，与内核构建隔离。
+
+[GUARANTEE]
+
+**必须交付的能力**
+
+1. 正常行为测试入口。
+2. 每项非法操作的独立运行入口或独立子进程场景。
+3. 运行全部用例并核对退出结果的驱动。
+4. `make buddy-host-test` 构建与执行目标。
+5. `docs/buddy_test.md` 覆盖矩阵和实际结果。
+
+测试文件内部函数名可以自行设计，但每个用例必须有稳定名称，
+能够对应到失败信息和文档。
+
+**测试夹具**
+
+- 创建有界模拟 Page 数组。
+- 设置与数组大小一致的 `pages`、`npage` 和真实 `nbase`。
+- 登记前将待登记页设为保留状态。
+- 每个独立场景从全新状态开始。
+- 不在真实内核活动状态上重置管理器。
+- 正常场景结束时释放所有存活分配，检查空闲页恢复。
+- 仅在测试进程内模拟异常全局状态，不能污染工程源码。
+
+**异常隔离**
+
+每个预期断言场景独立执行。
+
+宿主 `__panic` 可以记录已发生框架断言并以约定的非零状态退出，
+由父进程或测试驱动核对。
+
+不得把任意非零退出都判为“预期断言通过”：
+段错误、未捕获信号、超时和加载失败必须判失败。
+必须有证据证明触发了预期的断言路径。
+
+[SPECIFICATION]
+
+## Case 1 初始化为空
+
+**前置条件**
+- 模拟环境有效，但未登记任何空闲页。
+
+**操作与预期**
+- 调用 init。
+- 空闲页数为 0。
+- 申请 1 页返回 NULL，计数保持 0。
+- 若重复开展该用例，使用全新夹具状态。
+
+## Case 2 单页与各阶精确申请
+
+**前置条件**
+- 登记一个物理页号对齐、长度为二次幂的区间。
+- 用例规模不超过当前元数据容量。
+
+**操作与预期**
+- 覆盖从单页到该测试区间最大阶的申请。
+- 返回非 NULL。
+- 实际块大小与请求相同。
+- 首物理页号按块大小对齐。
+- 区间全部落在已登记范围。
+- 计数准确减少，释放后恢复。
+- 关键操作前后调用 check。
+
+## Case 3 非二次幂申请
+
+**操作与预期**
+- 至少测试 3、5、9 页请求，分别实际占用 4、8、16 页。
+- 分配对齐和计数按实际占用判断。
+- 使用原始请求长度释放，计数恢复。
+- 不得在正常用例中用向上取整后的长度替代原始长度释放。
+
+## Case 4 连续分裂与耗尽
+
+**前置条件**
+- 登记一个小型、对齐的二次幂区间。
+
+**操作与预期**
+- 连续申请单页直到耗尽。
+- 所有地址互异，所有返回区间合法。
+- 成功次数等于初始页数。
+- 耗尽后再申请返回 NULL，状态不变。
+- 按非原始顺序释放，计数逐次正确。
+- 全释放后可以重新申请整个大块。
+
+## Case 5 正确伙伴递归合并
+
+**前置条件**
+- 使用可手算的对齐小区间。
+
+**操作与预期**
+- 分配形成多个小块。
+- 释放真正伙伴后可以申请相应上阶块。
+- 分阶段验证多级递归合并，不能只检查最终空闲总量。
+- 不要求同阶选择固定地址；
+  如需精确地址断言，先构造只有唯一合法候选的状态。
+
+## Case 6 相邻但非伙伴
+
+**手算场景**
+- 在 nbase 为 8 的倍数的条件下，登记下标 `[0, 8)`。
+- 连续申请 4 个 2 页块，按返回地址识别它们，
+  不假定申请顺序就是地址顺序。
+- 保持外侧 `[0,2)` 与 `[6,8)` 存活，
+  释放中间 `[2,4)` 与 `[4,6)`。
+
+**预期**
+- 空闲总量为 4 页。
+- 中间两块相邻，但不是同阶伙伴。
+- 申请 4 页必须失败，状态和计数不变。
+- 最后释放外侧分配，恢复整个 8 页块。
+
+## Case 7 不规整初始区间
+
+**手算场景**
+- 使用足够大的描述符数组。
+- 在真实 nbase 满足相应对齐的条件下，登记 `[3,16)` 共 13 页。
+
+**预期**
+- 初始空闲数精确为 13。
+- 连续单页分配可恰好取得 13 个不同页面。
+- 不取得下标小于 3 或大于等于 16 的页。
+- 全部释放后恢复 13 页。
+- 未登记区域保持保留状态。
+- 另补充一个尾部不规整的区间，避免只测到长度不规整、
+  但末端恰好对齐的一种情况。
+
+## Case 8 多次登记与空洞
+
+**场景 A**
+- 先登记 `[20,24)`，再登记 `[16,20)`。
+- 当 nbase 满足 8 页对齐时，能够分配 `[16,24)` 的 8 页块。
+
+**场景 B**
+- 登记 `[32,34)` 与 `[36,38)`。
+- 总空闲数为 4，但申请 4 页失败。
+- 不得跨空洞合并；失败后计数和可用空间不变。
+
+**要求**
+- 场景之间重置夹具。
+- 保留并检查空洞页状态。
+- 如果真实 nbase 不满足上述对齐，调整手算下标，
+  并在文档写明实际物理页号，不能忽略绝对页号约束。
+
+## Case 9 分配失败保持状态
+
+**覆盖**
+- 请求超过总空闲量。
+- 总量够但没有足够大的连续伙伴块。
+- 极大请求，例如 size_t 的最大值。
+
+**预期**
+- 返回 NULL。
+- 原有存活分配仍有效。
+- 空闲页数不变。
+- check 通过。
+- 失败后继续正常分配与释放，结果符合原有资源状态。
+
+## Case 10 存活区间与交错多轮操作
+
+**操作与预期**
+- 混合不同请求大小。
+- 每次保存原始请求和独立计算的实际占用。
+- 用独立存活区间表检查所有实际占用区间两两不重叠。
+- 按确定的交错顺序分配、释放和重新申请。
+- 每次核对空闲页数。
+- 多轮结束后空闲量恢复，仍可申请初始最大块。
+- 如使用伪随机序列，固定并输出种子。
+
+**内存内容验证**
+- 若测试对象写入完整性，另建有界宿主字节数组作为模拟页内容。
+- 依据已验证的描述符下标映射到该数组。
+- 为不同存活分配写入不同模式，检查其他操作未破坏内容。
+- 不直接解引用模拟物理地址。
+- 该验证只能说明模拟模型中的区间隔离，
+  不能宣称真实 MMU 或 QEMU 数据访问已验证。
+
+## Case 11 非法申请与释放
+
+以下每一项使用独立异常场景：
+
+- 申请 0 页。
+- 释放时 n 为 0。
+- 释放 NULL。
+- 释放描述符范围外的地址。
+- 释放指向描述符内部的未对齐地址。
+- 释放分配块的非首描述符。
+- 使用与原始申请不符的长度释放。
+- 申请 3 页后错误地用 4 页释放。
+- 同一分配释放两次。
+- 释放保留页或未登记页。
+
+**预期**
+- 到达对应操作时触发框架断言。
+- 正常返回判失败。
+- 无关位置的断言、段错误、超时不能判通过。
+- 保留场景名称和诊断输出以便定位。
+
+## Case 12 非法登记与容量
+
+独立异常场景覆盖：
+- 登记 0 页。
+- 起点或区间越界。
+- 重复登记。
+- 部分重叠登记。
+- 输入区间中存在非保留页。
+- 模拟描述符数量超过静态容量。
+
+**预期**
+- 触发框架断言。
+- 不得通过给已登记页面重新设置 Reserved 来绕过重叠检查。
+- 越界和容量测试避免测试夹具自身先发生越界。
+- 不依靠异常进程退出后的状态推断失败前完全无修改；
+  这一点还需要对实现验证顺序进行代码审查。
+
+## 测试独立性与报告
+
+**Requirements**
+- 预期页数和关键小案例应手算，不调用被测内部函数生成预期。
+- 同阶选择未规定时，只验证集合、范围、对齐和计数。
+- 正常用例失败立即产生非零结果。
+- 异常用例只有命中预期断言才通过。
+- 测试结束生成各 Case 与结果的明确映射。
+- 报告区分宿主算法测试、代码审查和未执行的目标环境测试。
+- 本轮不宣称完成 RISC-V 架构、启动布局、页表或 QEMU 集成验证。
+
+
+---
+
+<a id="c-all"></a>
+
+# SLUB Challenge 与 QEMU 调试（C，原八项任务）
+
 # 成员 C 综合任务提示词
 
 负责人：程子涵，2413921。以下任务按顺序执行；每项都要求依据当前仓库真实源码操作，并按对应范围提交结果。最终提交包含 `code/`、`report/report.md`、本文件，以及报告正文实际引用的 `report/images/` 截图；未引用的截图、日志和临时构建文件在完成后删除。路径以仓库根目录为基准。
