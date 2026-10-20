@@ -4,7 +4,6 @@
 
 - [小组总报告](report/report.md)
 - [按任务标注的完整提示词汇总](report/prompt.md)
-- [整合来源与检查说明](report/integration_notes.md)
 
 源码在 code/。默认管理器 Best-Fit；BUDDY=1 选择 Buddy；SLUB_CHECK=1 开启 SLUB 检查；MMU_PROBE=1 开启地址翻译探针。切换构建参数前 make -C code clean。
 
