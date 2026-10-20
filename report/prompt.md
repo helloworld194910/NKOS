@@ -15,7 +15,7 @@
 
 First-Fit 和硬件内存探测为思考题，答案见总报告。
 
-原文件：[A 初始化](prompt1.md)、[A Best-Fit](member_a_best_fit_prompt.md)、[B 实现](buddy/Buddy实现提示词.md)、[B 测试](buddy/Buddy测试提示词.md)、[C 综合提示词](member_c_prompt.md)。
+本文件已汇总各任务的完整提示词；独立原稿与个人报告可在 Git 历史中查阅。
 
 
 ---

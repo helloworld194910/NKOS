@@ -224,7 +224,7 @@ static void page_init(void);
 
 #### 最终提示词
 
-本任务实际使用的完整提示词保存在同目录的 [prompt1.md](./prompt1.md)。
+本任务的完整提示词及初次实现反馈见 [物理内存初始化提示词](prompt.md#a-page-init)。
 
 提示词通过 `[RELY]` 列出真实工程接口和地址约定，通过 `[GUARANTEE]` 限定修改范围，通过 `[SPECIFICATION]` 描述正常初始化、无效设备树信息、范围裁剪、页面对齐、描述符空间不足及无完整空闲页等 Case。
 
@@ -232,7 +232,7 @@ static void page_init(void);
 
 #### 实现迭代过程
 
-本模块记录了一次实现迭代。原 prompt1.md 末尾反馈显示：pmm.c 单独编译通过，早期整项目曾被尚未实现的 Best-Fit 所阻塞；没有跨分工补写。后续 Best-Fit 完成后，默认启动及评分通过，结果见第五章。
+本模块记录了一次实现迭代。初始化提示词后的实现反馈显示：pmm.c 单独编译通过，早期整项目曾被尚未实现的 Best-Fit 所阻塞；没有跨分工补写。后续 Best-Fit 完成后，默认启动及评分通过，结果见第五章。
 
 ---
 
@@ -548,7 +548,7 @@ buddy_ppn = ppn XOR k
 | `code/Makefile` | 添加 Buddy 编译开关、独立宿主测试目标 |
 | `code/tools/buddy_host/cases.c` | 使用真实管理器接口测试正常行为和非法输入 |
 | `code/tools/buddy_host/platform.c`、`run.py` | 适配宿主输出与断言，隔离运行并自动判定结果 |
-| `code/docs/buddy_design.md`、`buddy_test.md` | 记录接口约定、测试覆盖和运行结果 |
+| 设计与测试说明 | 接口约定、测试覆盖和运行结果已并入本报告，完整提示词见 `prompt.md` |
 
 未修改公共 `Page`、`pmm_manager` 结构、地址转换接口，以及原有 First-Fit、Best-Fit 测试和评分规则。
 
@@ -1141,7 +1141,7 @@ C 的双 GDB 复现另需在 Linux 中准备匹配源码的 QEMU 4.1.1 调试版
 
 | 情景 | 处理与验证 | 记录边界 |
 | --- | --- | --- |
-| A 初期仅完成 page_init，Best-Fit 骨架导致构建失败 | 保留范围，不跨任务补写；后续 Best-Fit 完成再验证 | 早期阻塞不是 page_init 算法错误，原反馈保留在 prompt1.md |
+| A 初期仅完成 page_init，Best-Fit 骨架导致构建失败 | 保留范围，不跨任务补写；后续 Best-Fit 完成再验证 | 早期阻塞不是 page_init 算法错误，原反馈保留在 prompt.md 的初始化部分 |
 | A 的 Best-Fit 初始提示词约束不足 | 补地址顺序、状态、测试临时隔离和范围；既有检查通过 | 报告描述的部分是风险与规格迭代，不编造已经发生的每一种代码 bug |
 | B 的 WSL 调用受限 | Codex 辅助生成与检查，B 在 WSL 实跑反馈 | 不把助手读文件说成直接完成 WSL 测试 |
 | Buddy 原始请求与实际占用不同 | 先明确契约，再分别生成实现和独立测试，SLUB 保存原始页数 | 非法释放用例预期断言不是待修复故障 |
@@ -1149,7 +1149,7 @@ C 的双 GDB 复现另需在 Linux 中准备匹配源码的 QEMU 4.1.1 调试版
 | B 旧工具链不接受 zicsr/zifencei 参数 | 传 ARCH_FLAGS=，组合运行和最终 20/20 通过 | 兼容问题，不是更改分配算法 |
 | C 单看翻译函数不足以证明 hit | 同时看两条 ld、寄存器、表项和慢路径次数；区分 GDB 调试读取 | 采集脚本不是完整语义断言器，保留图文核对 |
 | C 的早期 CRLF 评分问题 | C 报告记录转 LF 后重跑通过 | 不伪造 B 遇到同一问题，也不修改评分规则 |
-| 总报告中各版本 PC/地址、人数和模板残留 | 对照当前文件与图片，清理模板，按运行配置标注 | 原稿保留，不修改提示词以追写历史 |
+| 总报告中各版本 PC/地址、人数和模板残留 | 对照当前文件与图片，清理模板，按运行配置标注 | 原稿在 Git 历史中保留，不修改提示词以追写历史 |
 
 Spec 的价值是先确定地址、状态、所有权与失败行为；Prompt 把接口、依赖、修改范围和 Case 交给 AI；测试再独立检验这些结果。B 的两份提示词按实际使用版本保留，C 的规范化稿按其说明保留为整理稿；既不隐藏真实兼容问题，也不为报告数量编造算法 bug 或聊天原话。
 
@@ -1158,11 +1158,11 @@ Spec 的价值是先确定地址、状态、所有权与失败行为；Prompt �
 | 要求 | 对应交付 |
 | --- | --- |
 | 整体逻辑与模块理解 | 总报告第三、四章 |
-| page_init 与内存探测 Challenge | 第四章 A 部分、prompt.md A 初始化、prompt1.md |
+| page_init 与内存探测 Challenge | 第四章 A 部分、prompt.md A 初始化及其后的实现反馈 |
 | First-Fit 与 Best-Fit 改进问题 | 第四章 A 部分及 Best-Fit 改进小节 |
-| Buddy 两份提示词与测试有效性 | prompt.md B 两部分、第四章 Buddy、buddy/ 原稿、code/tools/buddy_host |
+| Buddy 两份提示词与测试有效性 | prompt.md B 两部分、第四章 Buddy、code/tools/buddy_host |
 | SLUB 两份提示词与测试有效性 | prompt.md C 任务 1/2、第四章 SLUB、code/tools/member_c |
 | QEMU 六项调试与 AI 记录 | 第四章调试六项、prompt.md C 任务 3—8、images/ 原图 |
 | 真实结果、问题、知识对应与未覆盖内容 | 第五、六章 |
 
-完整总报告、提示词、十三张图片和个人原稿随仓库保存。
+提交内容为实验代码、总报告、完整提示词及十三张实验图片。
