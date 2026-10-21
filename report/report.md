@@ -14,9 +14,9 @@
 
 | 成员 | 实验任务 | 交付与公共职责 |
 | --- | --- | --- |
-| A：2411824 于蕾 | page_init、内存探测思考题、First-Fit 分析、Best-Fit | 对应实现、提示词、报告、两张测试图 |
-| B：2412790 杨茜茹 | Buddy 实现、独立测试 | 两份实际提示词、Buddy 报告、分支接入和回归、总文档整合 |
-| C: 2413921 程子涵 | SLUB 实现与测试、QEMU 地址翻译与 TLB 六项调试 | 八项提示词整理稿、调试脚本、报告和十一张证据图 |
+| 2411824 于蕾 | page_init、内存探测思考题、First-Fit 分析、Best-Fit | 对应实现、提示词、报告、两张测试图 |
+| 2412790 杨茜茹 | Buddy 实现、独立测试 | 两份实际提示词、Buddy 报告、分支接入和回归、总文档整合 |
+| 2413921 程子涵 | SLUB 实现与测试、QEMU 地址翻译与 TLB 六项调试 | 八项提示词整理稿、调试脚本、报告和十一张证据图 |
 
 
 ## 一、实验目的
@@ -42,9 +42,9 @@
 
 | 项目 | 已记录环境 |
 | --- | --- |
-| A | Best-Fit 完成阶段报告记录 RISC-V GCC 10.2.0；page_init 早期反馈曾仅具备 riscv64-linux-gnu-gcc，属于不同阶段 |
-| B | Windows、Ubuntu WSL、VS Code；RISC-V GCC 10.2.0；QEMU 启动显示 OpenSBI v0.4；原生 GCC 与 Python 3 执行 Buddy 测试 |
-| C | 报告记录 Windows+WSL2、Ubuntu 26.04.1 LTS、RISC-V GCC 14.2.0、调试版 QEMU 4.1.1、gdb/gdb-multiarch 17.1、ASan/UBSan |
+| 2411824 于蕾 | Best-Fit 完成阶段报告记录 RISC-V GCC 10.2.0；page_init 早期反馈曾仅具备 riscv64-linux-gnu-gcc，属于不同阶段 |
+| 2412790 杨茜茹 | Windows、Ubuntu WSL、VS Code；RISC-V GCC 10.2.0；QEMU 启动显示 OpenSBI v0.4；原生 GCC 与 Python 3 执行 Buddy 测试 |
+| 2413921 程子涵 | 报告记录 Windows+WSL2、Ubuntu 26.04.1 LTS、RISC-V GCC 14.2.0、调试版 QEMU 4.1.1、gdb/gdb-multiarch 17.1、ASan/UBSan |
 | 客体 | RISC-V 64 位、Sv39、4 KiB 基本页；默认 RAM 为 [0x80000000,0x88000000) |
 | 当前开关 | 默认 Best-Fit；BUDDY=1、SLUB_CHECK=1、MMU_PROBE=1 分别控制对应功能 |
 
