@@ -34,7 +34,7 @@
 | 成员 | AI 工具 | 模型版本及操作记录 |
 | --- | --- | --- |
 | A | deepseek | deepseek-v4-flash |
-| B |  |  |
+| 2412790 杨茜茹 | Codex 桌面应用 | 未记录精确版本 |
 | 程子涵 | Codex 桌面应用 |  |
 
 
@@ -1018,20 +1018,19 @@ A 图 1：默认 Best-Fit，描述符 32768 个，空闲页 31929，check_alloc_
 
 A 图 2：Page Init、Best-Fit 均为 OK，20/20。
 
-### 5.2 B 在 A+B+程子涵工作区执行的回归
+### 5.2 Buddy System 独立测试与内核联调
 
-以下结果由 B 在 VS Code WSL 终端执行并反馈，已写入个人报告第十二节：
+以公共 `lab2` 的 `4893cce` 为复查基线，在 2026-10-21 重新构建并验证 Buddy。测试分为宿主独立测试、Buddy 内核启动以及 Buddy＋SLUB 联调。
 
-| 配置/测试 | 实际结果 |
-| --- | --- |
-| make -C code member-c-host | SLUB 两轮宿主检查通过，每轮恢复 256 页；失败注入与碎片化通过 |
-| make -C code buddy-host-test | 28/28，通过正常与异常隔离场景 |
-| make -C code ARCH_FLAGS= SLUB_CHECK=1 qemu | Best-Fit+SLUB，通过并恢复 31928 页 |
-| make -C code ARCH_FLAGS= BUDDY=1 SLUB_CHECK=1 qemu | Buddy+SLUB，通过并恢复 31792 页，回收后 Buddy 检查通过 |
-| make -C code ARCH_FLAGS= SLUB_CHECK=1 MMU_PROBE=1 qemu | Best-Fit+SLUB+探针，通过并恢复 31927 页 |
-| make -C code ARCH_FLAGS= grade | check page init、check best fit 均 OK，20/20 |
+| 验证项目 | 命令 | 本次结果 |
+| --- | --- | --- |
+| 宿主独立测试 | `make -C code buddy-host-test` | 28/28 通过，包含 10 个正常场景和 18 个异常场景 |
+| Buddy 内核启动 | `make -C code ARCH_FLAGS= BUDDY=1` 后运行 QEMU | 选择 `buddy_pmm_manager`，登记 31793 个空闲页，Buddy 基础检查和 PMM 检查通过 |
+| Buddy＋SLUB 联调 | `make -C code ARCH_FLAGS= BUDDY=1 SLUB_CHECK=1` 后运行 QEMU | 初始空闲页 31792，SLUB 全部回收后恢复到 31792，随后 Buddy 基础检查再次通过 |
 
-B 每次切换客体配置前均 make -C code clean。QEMU 输出后进入已有 while(1) 是预期状态，使用 Ctrl+A、松开后 X 退出。清理构建会删除 obj 下 Buddy 日志，本报告保留输出摘录，不能据目录名推断历史日志仍然存在。
+每次切换客体配置前均执行 `make -C code clean`。宿主测试覆盖分裂、递归合并、相邻非伙伴、不规整区间、非二次幂请求、失败处理和非法输入；异常场景同时核对操作标记、断言来源、表达式及退出码。
+
+QEMU 运行检查管理器名称、页面登记和自检输出，观察窗口结束后由验证脚本停止等待中的内核。本次没有重新执行页表与 TLB 双 GDB 调试。宿主的 28 个场景未逐项移入 QEMU；原有 20/20 评分属于页初始化和 Best-Fit，不能当作 Buddy 的测试分数。
 
 ### 5.3 程子涵的测试、调试与最终集成证据
 
