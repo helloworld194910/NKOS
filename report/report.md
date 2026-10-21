@@ -6,7 +6,7 @@
 | --- | --- |
 | 实验名称 | Lab2：物理内存和页表 |
 | 小组成员 | 2411824 于蕾、2412790 杨茜茹、2413921 程子涵 |
-| 总报告整合 | 2412790 杨茜茹（B），借助 Codex 整理 |
+| 总报告整合 | 2412790 杨茜茹 ，借助 Codex 整理 |
 | 实现与运行记录 | 各成员开发记录及 2026-10-18 联调记录 |
 | 本次文档整理日期 | 2026-10-20 |
 
@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | A：2411824 于蕾 | page_init、内存探测思考题、First-Fit 分析、Best-Fit | 对应实现、提示词、报告、两张测试图 |
 | B：2412790 杨茜茹 | Buddy 实现、独立测试 | 两份实际提示词、Buddy 报告、分支接入和回归、总文档整合 |
-| 2413921 程子涵 | SLUB 实现与测试、QEMU 地址翻译与 TLB 六项调试 | 八项提示词整理稿、调试脚本、报告和十一张证据图 |
+| C: 2413921 程子涵 | SLUB 实现与测试、QEMU 地址翻译与 TLB 六项调试 | 八项提示词整理稿、调试脚本、报告和十一张证据图 |
 
 
 ## 一、实验目的
@@ -33,9 +33,9 @@
 
 | 成员 | AI 工具 | 模型版本及操作记录 |
 | --- | --- | --- |
-| A | deepseek | deepseek-v4-flash |
-| 2412790 杨茜茹 | Codex 桌面应用 | 未记录精确版本 |
-| 程子涵 | Codex 桌面应用 |  |
+| 2411824 于蕾 | deepseek | deepseek-v4-flash |
+| 2412790 杨茜茹 | Codex 桌面应用 | GPT-6.1 Sol |
+| 2413921 程子涵 | Codex 桌面应用 | GPT-6.1 Sol |
 
 
 ### 2.2 编译和调试环境
@@ -44,7 +44,7 @@
 | --- | --- |
 | A | Best-Fit 完成阶段报告记录 RISC-V GCC 10.2.0；page_init 早期反馈曾仅具备 riscv64-linux-gnu-gcc，属于不同阶段 |
 | B | Windows、Ubuntu WSL、VS Code；RISC-V GCC 10.2.0；QEMU 启动显示 OpenSBI v0.4；原生 GCC 与 Python 3 执行 Buddy 测试 |
-| 程子涵 | 报告记录 Windows+WSL2、Ubuntu 26.04.1 LTS、RISC-V GCC 14.2.0、调试版 QEMU 4.1.1、gdb/gdb-multiarch 17.1、ASan/UBSan |
+| C | 报告记录 Windows+WSL2、Ubuntu 26.04.1 LTS、RISC-V GCC 14.2.0、调试版 QEMU 4.1.1、gdb/gdb-multiarch 17.1、ASan/UBSan |
 | 客体 | RISC-V 64 位、Sv39、4 KiB 基本页；默认 RAM 为 [0x80000000,0x88000000) |
 | 当前开关 | 默认 Best-Fit；BUDDY=1、SLUB_CHECK=1、MMU_PROBE=1 分别控制对应功能 |
 
@@ -1020,17 +1020,53 @@ A 图 2：Page Init、Best-Fit 均为 OK，20/20。
 
 ### 5.2 Buddy System 独立测试与内核联调
 
-以公共 `lab2` 的 `4893cce` 为复查基线，在 2026-10-21 重新构建并验证 Buddy。测试分为宿主独立测试、Buddy 内核启动以及 Buddy＋SLUB 联调。
+以公共 `lab2` 的 `4893cce` 为代码复查基线，于 2026-10-21 完成 Buddy 独立测试、内核自检和 Buddy＋SLUB 联调，并再次手动运行、截图记录结果。每次切换内核配置前，均执行 `make -C code clean` 清理上一配置的构建产物。
 
-| 验证项目 | 命令 | 本次结果 |
-| --- | --- | --- |
-| 宿主独立测试 | `make -C code buddy-host-test` | 28/28 通过，包含 10 个正常场景和 18 个异常场景 |
-| Buddy 内核启动 | `make -C code ARCH_FLAGS= BUDDY=1` 后运行 QEMU | 选择 `buddy_pmm_manager`，登记 31793 个空闲页，Buddy 基础检查和 PMM 检查通过 |
-| Buddy＋SLUB 联调 | `make -C code ARCH_FLAGS= BUDDY=1 SLUB_CHECK=1` 后运行 QEMU | 初始空闲页 31792，SLUB 全部回收后恢复到 31792，随后 Buddy 基础检查再次通过 |
+#### 5.2.1 Buddy 独立测试
 
-每次切换客体配置前均执行 `make -C code clean`。宿主测试覆盖分裂、递归合并、相邻非伙伴、不规整区间、非二次幂请求、失败处理和非法输入；异常场景同时核对操作标记、断言来源、表达式及退出码。
+执行：
 
-QEMU 运行检查管理器名称、页面登记和自检输出，观察窗口结束后由验证脚本停止等待中的内核。本次没有重新执行页表与 TLB 双 GDB 调试。宿主的 28 个场景未逐项移入 QEMU；原有 20/20 评分属于页初始化和 Best-Fit，不能当作 Buddy 的测试分数。
+```bash
+make -C code buddy-host-test
+```
+
+测试直接编译工程中的 `buddy_pmm.c`，检查实际分配器实现。正常场景覆盖不同阶的分配、非二次幂请求、块分裂、伙伴合并、相邻非伙伴、不规整区间登记、分配失败和交错分配释放。
+
+异常场景检查零页请求、非法释放、重复释放和错误空闲区登记等情况。测试程序隔离运行这些场景，核对操作标记、断言来源、表达式及退出码；此处的 PASS 表示非法操作被按预期拒绝。
+
+![Buddy 独立测试结果](images/buddy-host-test.png)
+
+图 5.2-1：Buddy 独立测试全部通过，最终输出 `RESULT: 28/28 passed`，包含 10 个正常场景和 18 个异常场景。这些测试在宿主环境执行，不是 QEMU 内核中的 28 项测试。
+
+#### 5.2.2 Buddy 内核自检
+
+清理构建后执行：
+
+```bash
+make -C code ARCH_FLAGS= BUDDY=1 qemu
+```
+
+![Buddy 内核启动与自检结果](images/buddy-kernel-check.png)
+
+图 5.2-2：内核输出 `memory management: buddy_pmm_manager`，确认实际选择了 Buddy 管理器。物理内存初始化后登记 31793 个空闲页，随后输出 `buddy_check() basic invariants succeeded!` 和 `check_alloc_page() succeeded!`，说明本次启动中的 Buddy 基础不变量检查通过。
+
+#### 5.2.3 Buddy 与 SLUB 联调
+
+再次清理构建后执行：
+
+```bash
+make -C code ARCH_FLAGS= BUDDY=1 SLUB_CHECK=1 qemu
+```
+
+本项使用队友实现的 SLUB 模块，验证其能否以 Buddy 作为底层页面分配器完成对象分配与释放。
+
+![Buddy 与 SLUB 联调结果](images/buddy-slub-check.png)
+
+图 5.2-3：本配置初始登记 31792 个空闲页。SLUB 的大小边界、对齐、不重叠、内容保持、槽位复用、跨页增长、回收及失败处理检查通过；全部回收后输出 `free pages restored: 31792`，与初始值一致。随后再次通过 Buddy 基础不变量检查。
+
+两种内核配置的初始空闲页数不同，是因为启用 SLUB 检查后内核占用发生变化。回收是否完整，应比较同一次运行中的初始页数与最终恢复页数。
+
+以上三项检查均通过。QEMU 完成输出后进入内核等待循环。本次未重新进行页表与 TLB 双 GDB 调试；原有 `20/20` 评分对应页初始化与 Best-Fit，不作为 Buddy 的测试分数。
 
 ### 5.3 程子涵的测试、调试与最终集成证据
 
