@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | A：2411824 于蕾 | page_init、内存探测思考题、First-Fit 分析、Best-Fit | 对应实现、提示词、报告、两张测试图 |
 | B：2412790 杨茜茹 | Buddy 实现、独立测试 | 两份实际提示词、Buddy 报告、分支接入和回归、总文档整合 |
-| C：2413921 程子涵 | SLUB 实现与测试、QEMU 地址翻译与 TLB 六项调试 | 八项提示词整理稿、调试脚本、报告和十一张证据图 |
+| 2413921 程子涵 | SLUB 实现与测试、QEMU 地址翻译与 TLB 六项调试 | 八项提示词整理稿、调试脚本、报告和十一张证据图 |
 
 
 ## 一、实验目的
@@ -35,7 +35,7 @@
 | --- | --- | --- |
 | A | deepseek | deepseek-v4-flash |
 | B |  |  |
-| C | Codex 桌面应用 |  |
+| 程子涵 | Codex 桌面应用 |  |
 
 
 ### 2.2 编译和调试环境
@@ -44,7 +44,7 @@
 | --- | --- |
 | A | Best-Fit 完成阶段报告记录 RISC-V GCC 10.2.0；page_init 早期反馈曾仅具备 riscv64-linux-gnu-gcc，属于不同阶段 |
 | B | Windows、Ubuntu WSL、VS Code；RISC-V GCC 10.2.0；QEMU 启动显示 OpenSBI v0.4；原生 GCC 与 Python 3 执行 Buddy 测试 |
-| C | 报告记录 Windows+WSL2、Ubuntu 26.04.1 LTS、RISC-V GCC 14.2.0、调试版 QEMU 4.1.1、gdb/gdb-multiarch 17.1、ASan/UBSan |
+| 程子涵 | 报告记录 Windows+WSL2、Ubuntu 26.04.1 LTS、RISC-V GCC 14.2.0、调试版 QEMU 4.1.1、gdb/gdb-multiarch 17.1、ASan/UBSan |
 | 客体 | RISC-V 64 位、Sv39、4 KiB 基本页；默认 RAM 为 [0x80000000,0x88000000) |
 | 当前开关 | 默认 Best-Fit；BUDDY=1、SLUB_CHECK=1、MMU_PROBE=1 分别控制对应功能 |
 
@@ -74,7 +74,7 @@ entry.S：启动页表与 Sv39
 
 先确定真实可用物理页，分配器才有合法资源；再理解 First-Fit 的状态约定，完成 Best-Fit 和 Buddy 的页级策略。SLUB 依赖已经可用的公共页接口，因此安排在上层；MMU 调试则针对启动映射，可在页分配前观察。公共接口让成员可以独立开发，集成时重点核对所有权、申请/释放长度和构建开关。
 
-Best-Fit 成功时精确分配 n 页，Buddy 则向上取整到二次幂、按实际占用扣页，但释放必须传原始 n。SLUB 保存原始请求页数，避免把这两个契约混用。内核代码、静态 Buddy 元数据和 C 的探针/数组都会改变 end，因此空闲页基线由每次实际构建确定，不能写死。
+Best-Fit 成功时精确分配 n 页，Buddy 则向上取整到二次幂、按实际占用扣页，但释放必须传原始 n。SLUB 保存原始请求页数，避免把这两个契约混用。内核代码、静态 Buddy 元数据和程子涵的探针/数组都会改变 end，因此空闲页基线由每次实际构建确定，不能写死。
 
 ## 四、实验内容与实现
 
@@ -643,7 +643,7 @@ RESULT: 28/28 passed
 **遇到的问题：**
 
 1. 合并 A 的代码时，`pmm.c` 的管理器选择发生冲突：A 将默认管理器改为 Best-Fit，本人的版本增加了 Buddy 条件选择。
-2. 接入 C 后，旧工具链在编译 `entry.S` 时报告无法确定 `zicsr`、`zifencei` 扩展的默认版本，客体构建被阻断。
+2. 接入程子涵后，旧工具链在编译 `entry.S` 时报告无法确定 `zicsr`、`zifencei` 扩展的默认版本，客体构建被阻断。
 3. SLUB 大对象可能请求三页，Buddy 实际占用四页，需要确认上层释放时传回的长度符合本模块要求。
 
 **问题解决策略：**
@@ -659,7 +659,7 @@ RESULT: 28/28 passed
 | 验证项目 | 实际结果 |
 | --- | --- |
 | Buddy 完整构建与 QEMU 启动 | 管理器名称正确，`buddy_check()`、`check_alloc_page()` 通过 |
-| 接入 A、C 后的 Buddy 宿主测试 | 28/28 通过 |
+| 接入 A、程子涵后的 Buddy 宿主测试 | 28/28 通过 |
 | Best-Fit＋SLUB | 检查通过，释放后恢复 31928 个空闲页 |
 | Buddy＋SLUB | 检查通过，释放后恢复 31792 个空闲页，随后 Buddy 基础检查再次通过 |
 | Best-Fit＋SLUB＋MMU 探针 | 检查通过，释放后恢复 31927 个空闲页 |
@@ -724,9 +724,9 @@ size_t slub_owned_pages(void);
 
 内核接口为 `void slub_check(void)`，实现位于 `code/kern/mm/slub_check.c`。宿主 `code/tools/member_c/host_test.c` 提供 main、PMM 模型、cprintf 和 __panic 的适配定义，直接链接真实 SLUB；这些定义不进入内核链接。run_host.sh 开启 ASan/UBSan，run_qemu.py 检查真实管理器与 PMM/SLUB 标记。
 
-![成员 C 早期宿主 SLUB 测试](images/01-slub-host.png)
+![成员程子涵早期宿主 SLUB 测试](images/01-slub-host.png)
 
-图 1：10 月 18 日在当前成员 C 工作树运行 `make member-c-host` 的宿主测试结果。类别边界、复用、回收、PMM 失败与碎片化测试通过，空闲页恢复到 256。该测试使用宿主 PMM 模型，QEMU 集成结果见第五章。
+图 1：10 月 18 日在当前成员程子涵工作树运行 `make member-c-host` 的宿主测试结果。类别边界、复用、回收、PMM 失败与碎片化测试通过，空闲页恢复到 256。该测试使用宿主 PMM 模型，QEMU 集成结果见第五章。
 
 ##### 实现规格
 
@@ -971,11 +971,11 @@ satp=0、access_type=1，调用栈为 store_helper 的慢路径，返回 PA=`0x8
 
 ##### 模块功能描述
 
-本任务不新增代码接口，修改报告中的真实问题记录。用户先要求结合指定 A/B 分支完成成员 C 的功能、选图和清理，再要求按照仓库标准格式和七项检查逐任务重写提示词。以下记录问题和处理意图，不伪装成历史逐字聊天。
+本任务不新增代码接口，修改报告中的真实问题记录。用户先要求结合指定 A/B 分支完成成员程子涵的功能、选图和清理，再要求按照仓库标准格式和七项检查逐任务重写提示词。以下记录问题和处理意图，不伪装成历史逐字聊天。
 
 | 问题情景 | 思路与提问意图 | 实际处理 | 验证依据 |
 | --- | --- | --- | --- |
-| 集成基线选择 | 对照 A 的 `lab2` 与 B 的 `lab2-yang` | 以包含 A 成果的 `lab2-yang` 为底座，接入 C 的 SLUB 与探针 | 最终源码与三种配置的运行结果 |
+| 集成基线选择 | 对照 A 的 `lab2` 与 B 的 `lab2-yang` | 以包含 A 成果的 `lab2-yang` 为底座，接入程子涵的 SLUB 与探针 | 最终源码与三种配置的运行结果 |
 | 单看翻译函数不足以证明第二次 hit | 需要同时看到指令完成、TLB 状态与慢路径次数 | 使用三次快照、两条 ld 的值及 TCG 源码交叉核对 | host/guest trace 结果与指令观察 |
 | Bare 对照仅靠取指不充分 | 找启动阶段确定会执行的数据存储 | 观察保存 hartid 的真实 sd，过滤地址与访问类型 | satp=0、access=1 的 REAL_WALK/FILL |
 | 切换宏可能复用旧对象 | 必须确认实际构建配置而非只看命令 | 各配置先 make clean，检查运行管理器名称 | 各配置的构建与启动结果 |
@@ -991,14 +991,14 @@ satp=0、access_type=1，调用栈为 store_helper 的慢路径，返回 PA=`0x8
 
 最初的短提示词按功能概述给出约束；本次对照标准文件补为八份独立任务。每份写明目标文件、必须修改真实文件、全部适用接口、真实 RELY、白名单/禁区、明确前后条件与 Case、系统限制。此次只调整文档，原有测试结果按实际执行记录整理；文档引用检查不被称为重新运行 QEMU。
 
-没有将未出现的分配器越界、泄漏或重复发放写成“实际修复过的 bug”。B 的原稿已包含 A+B 联调，本次新增的是 C 的对象层与最终调试集成，不把 B 原稿误述为始终只有宿主测试。
+没有将未出现的分配器越界、泄漏或重复发放写成“实际修复过的 bug”。B 的原稿已包含 A+B 联调，本次新增的是程子涵的对象层与最终调试集成，不把 B 原稿误述为始终只有宿主测试。
 
 ---
 
 
 #### 本次整合时对调试证据和工具的补充说明
 
-C 的最终 trace 图可见 Bare 的 access=1 数据存储、目标 VA 的一次 REAL_WALK/PTE/FILL，以及客体两次 load 的正确寄存器值。早期三次快照和慢路径计数图另行保留；原始完整 trace 日志未随仓库提交，本报告不声称可以在交付目录直接找到这些历史日志。
+程子涵的最终 trace 图可见 Bare 的 access=1 数据存储、目标 VA 的一次 REAL_WALK/PTE/FILL，以及客体两次 load 的正确寄存器值。早期三次快照和慢路径计数图另行保留；原始完整 trace 日志未随仓库提交，本报告不声称可以在交付目录直接找到这些历史日志。
 
 现有 capture_debug.py 负责采集两种 GDB 的输出，不能只凭脚本退出成功判断全部语义通过；run_qemu.py 主要检查管理器/PMM/SLUB 标记和 panic，也不能作为所有提前异常退出的完整判据。本次采用已有图文与人工核对，没有在文档整合阶段擅自修改调试工具或评分器。提示词描述的是要求，实际实现和验证边界应分别陈述。
 
@@ -1012,13 +1012,13 @@ C 的最终 trace 图可见 Bare 的 access=1 数据存储、目标 VA 的一次
 
 ![A：默认 Best-Fit 启动](images/Amake-qemu.png)
 
-A 图 1：默认 Best-Fit，描述符 32768 个，空闲页 31929，check_alloc_page 成功。该图的静态页表 PA 为 0x80205000，属于该构建，不能替代 C 探针构建的 0x80206000。
+A 图 1：默认 Best-Fit，描述符 32768 个，空闲页 31929，check_alloc_page 成功。该图的静态页表 PA 为 0x80205000，属于该构建，不能替代程子涵探针构建的 0x80206000。
 
 ![A：原评分](images/Amake-grade.png)
 
 A 图 2：Page Init、Best-Fit 均为 OK，20/20。
 
-### 5.2 B 在 A+B+C 工作区执行的回归
+### 5.2 B 在 A+B+程子涵工作区执行的回归
 
 以下结果由 B 在 VS Code WSL 终端执行并反馈，已写入个人报告第十二节：
 
@@ -1033,12 +1033,12 @@ A 图 2：Page Init、Best-Fit 均为 OK，20/20。
 
 B 每次切换客体配置前均 make -C code clean。QEMU 输出后进入已有 while(1) 是预期状态，使用 Ctrl+A、松开后 X 退出。清理构建会删除 obj 下 Buddy 日志，本报告保留输出摘录，不能据目录名推断历史日志仍然存在。
 
-### 5.3 C 的测试、调试与最终集成证据
+### 5.3 程子涵的测试、调试与最终集成证据
 
 
 
 
-#### C-5.1 SLUB 覆盖与结果
+#### 程子涵-5.1 SLUB 覆盖与结果
 
 | 测试 | 覆盖内容 | 实际结果 |
 | --- | --- | --- |
@@ -1053,7 +1053,7 @@ B 每次切换客体配置前均 make -C code clean。QEMU 输出后进入已有
 
 最终 Best-Fit＋SLUB 在 QEMU 4.1.1 中通过初始化和对象检查，回收后剩余 31927 页。Buddy＋SLUB 回收后恢复到该配置的 31792 页基线；Buddy 将 3 页请求向上取整为 4 页，释放仍传原请求 3 页。
 
-#### C-5.2 全工程验证
+#### 程子涵-5.2 全工程验证
 
 | 验证项 | 结果 |
 | --- | --- |
@@ -1067,7 +1067,7 @@ B 每次切换客体配置前均 make -C code clean。QEMU 输出后进入已有
 
 20/20 仅覆盖原有评分项。Buddy 的 28 个场景在宿主执行，没有逐项在客体中运行。QEMU 内核保留框架原有等待循环，自动运行器在观察窗口结束后停止 QEMU。
 
-#### C-5.3 最终集成截图
+#### 程子涵-5.3 最终集成截图
 
 ![最终 Best-Fit、SLUB 与 MMU 探针运行](images/09-final-bestfit.png)
 
@@ -1111,7 +1111,7 @@ make -C code clean
 make -C code ARCH_FLAGS= grade
 ```
 
-C 的双 GDB 复现另需在 Linux 中准备匹配源码的 QEMU 4.1.1 调试版、宿主 gdb 和客体 gdb-multiarch，并先干净构建 SLUB_CHECK=1 MMU_PROBE=1 的内核。code/tools/member_c/build_qemu.sh 可通过 QEMU_BUILD_ROOT 配置工程外构建位置，无需 make install。随后在 code 目录运行 capture_debug.py --qemu <调试版可执行文件> --source <QEMU源码目录>，添加 --step 切换源级单步；这只是复现入口说明，本次没有执行。
+程子涵的双 GDB 复现另需在 Linux 中准备匹配源码的 QEMU 4.1.1 调试版、宿主 gdb 和客体 gdb-multiarch，并先干净构建 SLUB_CHECK=1 MMU_PROBE=1 的内核。code/tools/member_c/build_qemu.sh 可通过 QEMU_BUILD_ROOT 配置工程外构建位置，无需 make install。随后在 code 目录运行 capture_debug.py --qemu <调试版可执行文件> --source <QEMU源码目录>，添加 --step 切换源级单步；这只是复现入口说明，本次没有执行。
 
 初始化无效范围、无完整空闲页、超上界裁剪等 Case 是规格和代码检查的一部分，没有对应实跑记录的不能标为动态通过。原 test_page_init 未考虑大 RAM 裁剪，因此不能直接用扩大 RAM 的运行替代默认评分；不修改测试掩盖差异。
 
@@ -1144,4 +1144,5 @@ C 的双 GDB 复现另需在 Linux 中准备匹配源码的 QEMU 4.1.1 调试版
 | 旧工具链不接受 zicsr/zifencei 参数 | 传 ARCH_FLAGS=，组合运行和最终 20/20 通过 | 兼容问题，不是更改分配算法 |
 | 单看翻译函数不足以证明 hit | 同时看两条 ld、寄存器、表项和慢路径次数；区分 GDB 调试读取 | 采集脚本不是完整语义断言器，保留图文核对 |
 
-Spec 的价值是先确定地址、状态、所有权与失败行为；Prompt 把接口、依赖、修改范围和 Case 交给 AI；测试再独立检验这些结果。B 的两份提示词按实际使用版本保留，C 的规范化稿按其说明保留为整理稿。
+Spec 的价值是先确定地址、状态、所有权与失败行为；Prompt 把接口、依赖、修改范围和 Case 交给 AI；测试再独立检验这些结果。B 的两份提示词按实际使用版本保留，程子涵的规范化稿按其说明保留为整理稿。
+
