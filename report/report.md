@@ -1010,11 +1010,11 @@ satp=0、access_type=1，调用栈为 store_helper 的慢路径，返回 PA=`0x8
 
 通过make qemu成功通过测试，make test 得到 grading: 6 / 6 points，以及 make grade 为 20/20。
 
-![A：默认 Best-Fit 启动](images/Amake-qemu.png)
+![A：默认 Best-Fit 启动](images/14-Amake-qemu.png)
 
 A 图 1：默认 Best-Fit，描述符 32768 个，空闲页 31929，check_alloc_page 成功。该图的静态页表 PA 为 0x80205000，属于该构建，不能替代程子涵探针构建的 0x80206000。
 
-![A：原评分](images/Amake-grade.png)
+![A：原评分](images/13-Amake-grade.png)
 
 A 图 2：Page Init、Best-Fit 均为 OK，20/20。
 
@@ -1034,7 +1034,7 @@ make -C code buddy-host-test
 
 异常场景检查零页请求、非法释放、重复释放和错误空闲区登记等情况。测试程序隔离运行这些场景，核对操作标记、断言来源、表达式及退出码；此处的 PASS 表示非法操作被按预期拒绝。
 
-![Buddy 独立测试结果](images/buddy-host-test.png)
+![Buddy 独立测试结果](images/15-buddy-host-test.png)
 
 图 5.2-1：Buddy 独立测试全部通过，最终输出 `RESULT: 28/28 passed`，包含 10 个正常场景和 18 个异常场景。这些测试在宿主环境执行，不是 QEMU 内核中的 28 项测试。
 
@@ -1046,7 +1046,7 @@ make -C code buddy-host-test
 make -C code ARCH_FLAGS= BUDDY=1 qemu
 ```
 
-![Buddy 内核启动与自检结果](images/buddy-kernel-check.png)
+![Buddy 内核启动与自检结果](images/16-buddy-kernel-check.png)
 
 图 5.2-2：内核输出 `memory management: buddy_pmm_manager`，确认实际选择了 Buddy 管理器。物理内存初始化后登记 31793 个空闲页，随后输出 `buddy_check() basic invariants succeeded!` 和 `check_alloc_page() succeeded!`，说明本次启动中的 Buddy 基础不变量检查通过。
 
@@ -1060,7 +1060,7 @@ make -C code ARCH_FLAGS= BUDDY=1 SLUB_CHECK=1 qemu
 
 本项使用队友实现的 SLUB 模块，验证其能否以 Buddy 作为底层页面分配器完成对象分配与释放。
 
-![Buddy 与 SLUB 联调结果](images/buddy-slub-check.png)
+![Buddy 与 SLUB 联调结果](images/17-buddy-slub-check.png)
 
 图 5.2-3：本配置初始登记 31792 个空闲页。SLUB 的大小边界、对齐、不重叠、内容保持、槽位复用、跨页增长、回收及失败处理检查通过；全部回收后输出 `free pages restored: 31792`，与初始值一致。随后再次通过 Buddy 基础不变量检查。
 
