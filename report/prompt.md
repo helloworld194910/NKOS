@@ -6,16 +6,14 @@
 
 | 实验任务 | 负责人 | 完整提示词 |
 | --- | --- | --- |
-| 模块一·任务一：物理内存初始化 | A | [page_init 提示词及原文件反馈](#a-page-init) |
-| 模块二·任务二：Best-Fit | A | [Best-Fit 提示词](#a-best-fit) |
-| 模块二·任务三：Buddy 实现 | B | [Buddy 实现提示词](#b-buddy-implementation) |
-| 模块二·任务三：Buddy 独立测试 | B | [Buddy 测试提示词](#b-buddy-tests) |
+| 模块一·任务一：物理内存初始化 | 于蕾 | [page_init 提示词及原文件反馈](#a-page-init) |
+| 模块二·任务二：Best-Fit | 于蕾 | [Best-Fit 提示词](#a-best-fit) |
+| 模块二·任务三：Buddy 实现 | 杨茜茹 | [Buddy 实现提示词](#b-buddy-implementation) |
+| 模块二·任务三：Buddy 独立测试 | 杨茜茹 | [Buddy 测试提示词](#b-buddy-tests) |
 | SLUB Challenge：实现、测试 | 程子涵 | [程子涵任务 1](#task-1)、[程子涵任务 2](#task-2) |
 | QEMU 调试要求 1—6 | 程子涵 | [调用路径](#task-3)、[页表单步](#task-4)、[TLB](#task-5)、[Bare 对照](#task-6)、[观察收获](#task-7)、[AI 问题处理](#task-8) |
 
 First-Fit 和硬件内存探测为思考题，答案见总报告。
-
-本文件已汇总各任务的完整提示词；独立原稿与个人报告可在 Git 历史中查阅。
 
 
 ---
