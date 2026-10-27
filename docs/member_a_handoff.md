@@ -31,7 +31,7 @@ C：用户代码、ecall触发/识别、必要用户映射、上层返回验证�
 
 ## 5. 状态与报告
 
-Spec/Prompt、偏移表和基础实现已准备；本人于2026-10-27在WSL完成RISC-V单文件编译，日志为logs/member-a-trapentry-build.log。完整Context、异常与持续时钟返回尚待联调；S→U→S尚未实现。另已通过独立 QEMU 三场景验证；这不代表正式内核评分或用户态扩展通过。
+Spec/Prompt、偏移表和基础实现已准备；本人于2026-10-27在WSL完成RISC-V单文件编译，日志为logs/member-a-trapentry-build.log。完整Context、异常与持续时钟返回尚待联调；S→U→S 的 A 底层候选已通过独立验证，上层共同接入仍待完成。另已通过独立 QEMU 三场景验证；这不代表正式内核评分或用户态扩展通过。
 
 A主写整体逻辑、功能模块一、扩展底层、个人知识点和AI经验；测试证据交B，最终整合交C。交付以本人WSL实际差异、编译日志及后续联调结果为准，不把助手访问WSL失败写成算法Bug。
 
@@ -50,3 +50,9 @@ A主写整体逻辑、功能模块一、扩展底层、个人知识点和AI经�
 复现命令：`python3 tests/member_a/run_context.py`（工程根目录）。证据：logs/member-a-context-build.log、logs/member-a-context-environment.log、logs/member-a-context-qemu.log、logs/member-a-context-result.json。JSON 保存被测源码哈希，需与对应运行版本配合阅读。
 
 首次因 SPIE 环境假设失败的输出与旧版文本已保留；此后修订了测试规格，未修改正式汇编。正式内核 Context/Illegal/Timer 评分、持续时钟中断返回和 S→U→S Challenge 均不属于本次通过范围。尚未引入其他成员的新实现。
+
+## 2026-10-27 S→U→S 底层候选进展
+
+A 底层实现及测试夹具已在本人 WSL 的 QEMU 4.1.1 中通过三个独立场景。两次正常往返、重入拒绝与错误回调恢复均有检查；每轮两次真实 U 态 ecall，观察 cause=8、SPP=0、用户 sp 和内核栈帧。具体接口、职责和结果见 member_a_switch_handoff.md、member_a_switch_validation.md。
+
+接口仍为候选，未与上层共同确认；测试用户代码、页表和 callback 均为夹具。正式 Context/Illegal/Timer、持续时钟返回和其他成员代码互审仍待完成。个人报告草稿为 member_a_report.md，完整提示词汇总为 ../prompts/member_a_prompt_summary.md。
