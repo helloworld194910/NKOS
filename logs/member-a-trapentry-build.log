@@ -1,0 +1,4 @@
+COMMAND: make obj/kern/trap/trapentry.o
++ cc kern/trap/trapentry.S
+
+EXIT_CODE: 0
