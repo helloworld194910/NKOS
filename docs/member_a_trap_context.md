@@ -1,6 +1,6 @@
 # Lab3 成员 A：基础 Trap 上下文设计
 
-负责人：2412790 杨茜茹。阶段：本人 WSL 单文件编译通过，等待 B/C 完整联调。
+负责人：2412790 杨茜茹。阶段：本人 WSL 单文件编译与独立 QEMU 三场景验证通过；完整内核评分仍待联调。
 
 ## 1. 修改范围
 
@@ -67,10 +67,26 @@ C 的第一个参数 a0 是 frame 地址，原程序 a0 已在第10槽，不因�
 - 助手直接访问 WSL 仍受限；本人已于 2026-10-27 在 WSL 执行独立汇编编译并返回成功日志。
 - 编译命令：make obj/kern/trap/trapentry.o；输出含 + cc kern/trap/trapentry.S，退出码为 0。
 - 构建日志：logs/member-a-trapentry-build.log；对象文件头核对为 RV64 little-endian RISC-V ELF。
-- QEMU、Context、Illegal 和 Timer 尚未运行，不填写整机或评分通过。
+- 独立测试镜像的 QEMU 三场景已通过，详见下方实际运行记录。正式内核 Context、Illegal、Timer 与整机评分仍待联调。
 
 ## 5. 后续验证
 
 已在真实工程完成 make obj/kern/trap/trapentry.o，仅证明独立汇编单元成立。完整 Context 依赖 C 的 page_init/Best-Fit和异常处理；Timer依赖B。补充核对原 sp/ra、a0、处理后epc、2/4字节断点、持续中断返回。
 
 原 Context 评分不是全部寄存器/CSR的穷举测试；尤其不能只凭35分声称sp/ra/gp/tp/a0每项都已单独动态验证。报告要区分实跑、静态检查和待验证。
+
+## 2026-10-27 独立 QEMU 实际结果
+
+本人在 WSL 执行独立验证，四个编译单元、链接和镜像生成成功。实际环境：QEMU emulator version 4.1.1；按运行前确定的环境规格检查返回后 SPIE=0。
+
+| 场景 | 实际结果 |
+| --- | --- |
+| 四字节断点 | PASS；入口帧与返回后全部 GPR 检查通过，含原始 sp、ra、gp、tp、a0 |
+| 两字节断点 | PASS；从明确返回标签继续执行，全部 GPR 检查通过 |
+| C 修改帧 | PASS；t0、a0、s2、epc 修改生效，跳过指定指令，修改后的 SPIE 正确影响返回 SIE |
+
+前两场景返回 SIE=0，第三场景返回 SIE=1；三个场景均检查 SPP 清零和环境规定的 SPIE 后值。总结果 `RESULT: 3/3 context scenarios passed`，QEMU 退出码为 0。测试直接链接真实 trapentry.S，测试专用 trap 不进入正式构建。
+
+复现命令：`python3 tests/member_a/run_context.py`（工程根目录）。证据：logs/member-a-context-build.log、logs/member-a-context-environment.log、logs/member-a-context-qemu.log、logs/member-a-context-result.json。JSON 保存被测源码哈希，需与对应运行版本配合阅读。
+
+首次因 SPIE 环境假设失败的输出与旧版文本已保留；此后修订了测试规格，未修改正式汇编。正式内核 Context/Illegal/Timer 评分、持续时钟中断返回和 S→U→S Challenge 均不属于本次通过范围。尚未引入其他成员的新实现。

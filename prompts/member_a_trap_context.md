@@ -1,41 +1,127 @@
-# Lab3 功能模块一：基础实现 Spec / Prompt
+# Lab3 功能模块一：Trap 入口与上下文恢复提示词
 
-负责人：2412790 杨茜茹。日期：2026-10-27。本轮用于生成基础汇编实现；不包含用户态扩展，运行验证单独记录。
+**负责人：** 2412790 杨茜茹。
+
+本文件为依据首次实现约束整理的修订版。初始提示词保留在 Git 提交 `1e62511` 中；以下文字不冒充首次逐字输入记录。独立测试另用一份提示词。
 
 [PROMPT]
-任务：在真实 Lab3 工程 kern/trap/trapentry.S 的两个 lab3 function1 标记处，实现 RESTORE_ALL 和 __alltraps 到 trap(tf) 的参数传递、调用，形成 SAVE_ALL -> trap -> RESTORE_ALL -> sret 闭环。必须修改真实文件，不只展示代码。两处 YOUR CODE 改成 2412790，保留实验标记和既有代码注释。
 
-开始前核对 SAVE_ALL、trap.h、riscv.h、trap.c、Makefile 和 Context 测试。仅修改上述两处；不改 SAVE_ALL、trap.h、trap.c、PMM、启动汇编或原测试评分。不替 B/C 完成依赖，不自行提交推送。允许新增本人的 prompts/docs 说明。
+**任务：**
+
+在当前 Lab3 工程 `kern/trap/trapentry.S` 的两个 `#lab3 function1 YOUR CODE` 标记处，实现基础 Trap 入口调用和上下文恢复；若标记已署名为 `2412790`，审查已有实现并仅作必要修正。
+
+Trap 发生时，硬件记录异常位置和部分控制状态，但不会自动保存全部通用寄存器。框架的 `SAVE_ALL` 已将原程序寄存器和 Trap CSR 保存为栈上的 `struct trapframe`。本任务应让 C 处理函数收到该帧，并在处理函数返回后恢复帧中的有效状态，由原有 `sret` 继续执行。C 可以合法修改返回位置、通用寄存器和返回状态，汇编必须尊重这些修改。
+
+**操作要求：**
+
+1. 必须修改工程中的真实文件，不能只展示代码或补丁；若已有实现满足规格，不为制造修改而重写。
+2. 实施前查看 Git 状态，阅读目标文件、`trap.h`、`riscv.h`、`trap.c` 及原有 Context 测试，核对实际接口。
+3. 正式源码只允许修改 `RESTORE_ALL` 宏体和 `__alltraps` 中保存完上下文后的调用缺口。保留两处 `lab3 function1` 标记，将对应 `YOUR CODE` 替换为 `2412790`。
+4. 不修改 `SAVE_ALL`、`trap.h` 布局、`trap()` 签名、真实 `trap.c`、PMM、启动汇编、链接脚本、共享 Makefile、原有测试或评分脚本。
+5. 可新增本人提示词与设计、交接说明。不在本任务实现用户态切栈、时钟中断分派或其他成员负责的异常处理。
+6. 保留用户已有改动。不自动提交、推送、回滚或覆盖其他成员代码。
+
+**输出与验证要求：**
+
+说明实际修改位置、帧布局、参数传递和返回状态的处理依据。执行当前条件允许的差异检查及单文件编译，报告真实命令、结果和未执行内容。完整内核受 PMM 或 handler 缺失阻塞时明确记录；单文件通过不能写成 QEMU、Context 评分或全实验通过。独立运行测试与正式内核评分分别记录。
 
 [RELY]
-- RV64：REGBYTES=8，LOAD=ld，STORE=sd。
-- pushregs 按 x0～x31 排列，trapframe 之后为 status、epc、badvaddr、cause，共 36 槽、288 字节。
-- xN 偏移为 N*8；原始 sp 在 16；status=256，epc=264，badvaddr=272，cause=280。
-- SAVE_ALL 先暂存原始 sp 到 sscratch，再分配 frame；s0～s4 原值先保存，之后借用来读 CSR；csrrw 取回原始 sp 后把 sscratch 清零。
-- void trap(struct trapframe *tf) 是真实 C 接口，首参数在 a0；处理函数可能合法修改 tf->epc，返回必须采用处理后的 frame。
-- C 调用遵守 ABI，sp 按调用约定保持；ra、a0、临时寄存器可能被改变，原程序状态已经存在 frame。
-- __trapret 已有 RESTORE_ALL 和 sret，必须保留。基础入口支持内核栈场景，没有完整用户态切栈，扩展独立设计。
+
+## 最小工程依赖
+
+- `kern/trap/trapentry.S`：已有 `SAVE_ALL`、`RESTORE_ALL`、`__alltraps`、`__trapret`。`__trapret` 已调用 `RESTORE_ALL` 并执行 `sret`。
+- `kern/trap/trap.h`：`struct pushregs` 按 x0 至 x31 的顺序记录 32 个通用寄存器；`struct trapframe` 随后包含 `status`、`epc`、`badvaddr`、`cause`。
+- `libs/riscv.h`：RV64 下 `REGBYTES=8`，`LOAD=ld`，`STORE=sd`。类型来自真实 `libs/defs.h`，不能另造一套布局。
+- `kern/trap/trap.c` 的 C 接口：
+
+```c
+void trap(struct trapframe *tf);
+```
+
+- RISC-V 调用约定：第一个参数在 `a0`；调用可能破坏 `ra`、参数寄存器和临时寄存器。正常 C 调用返回时应恢复自己的栈帧，调用者仍可定位原 Trap 帧。
+
+## 当前帧布局
+
+| 内容 | 相对当前帧基址的字节偏移 |
+| --- | --- |
+| xN | `N * REGBYTES` |
+| 原始 x2 / sp | 16 |
+| status | 256 |
+| epc | 264 |
+| badvaddr | 272 |
+| cause | 280 |
+
+总大小为 288 字节，满足原栈对齐时的 16 字节 C 调用对齐要求。`SAVE_ALL` 保存通用寄存器原值后借用 s0～s4 读取 CSR；它将原始 sp 放入 x2 槽，并清零 sscratch。不能把借用后的 s0～s4 当作被中断程序的原值。
+
+基础框架使用当前内核栈，未实现完整 U 态进入内核时的栈交换。本任务只对当前 S 态入口前提负责。`sret` 对 SIE、SPIE、SPP 的后续变换属于处理器行为，不能要求返回后 sstatus 与保存值逐位相等。
 
 [GUARANTEE]
-必须实现：RESTORE_ALL 宏体；__alltraps 中调用 trap 的代码；两处学号署名。
-必须保持：原 SAVE_ALL、结构体、接口和既有测试不变；GPR 恢复与槽一一对应；x0 恒零，无需无意义加载；恢复处理后的 sstatus 和 sepc；badvaddr/cause 留作诊断，不要求全部写回；原始 sp 最后恢复；恢复 CSR 使用的临时 GPR 最终恢复其原槽；不硬编码 SPP、SPIE、epc；不破坏 16 字节调用栈对齐。288 是 16 的倍数。
+
+**必须交付的接口与连接：**
+
+```asm
+.macro RESTORE_ALL
+    # 恢复当前有效 trapframe 所规定的返回状态
+.endm
+
+__alltraps:
+    # 保留已有 SAVE_ALL
+    # 将当前帧地址传给 trap，并正常调用后返回
+
+__trapret:
+    # 保留已有 RESTORE_ALL 和 sret
+```
+
+宏和符号名称保持不变，不新增跨文件的正式接口。允许在两处标记范围内选择必要的汇编临时寄存器；这些寄存器最终也必须从对应槽恢复。
+
+**系统约束：**
+
+- 原程序通用寄存器状态来自处理后的帧，不以 C 调用后寄存器的瞬时内容替代。
+- 使用帧基址时不能先把它覆盖为原始 sp；恢复 sp 之后不得继续依赖原基址加载其他槽。
+- 不写回只用于诊断的 scause、sbadaddr，不将其错作返回地址。
+- 不在汇编中固定给 epc 加 2 或加 4；异常指令长度与跳转策略由处理函数决定。
+- 不强制设置 SPP、SPIE，不改变处理函数合法决定的返回意图。
 
 [SPECIFICATION]
-## RESTORE_ALL
-Pre：sp 指向已保存且经 C 处理后的有效 frame。
-Post：x1、x3～x31 采用相应槽值，sp 采用第2槽；sstatus/sepc 采用 status/epc；不写坏 frame，随后可执行既有 sret。
-Case 1：C 不修改 frame，恢复槽中的原值。
-Case 2：C 更新 epc，采用更新值；汇编不自行添加固定指令偏移。
-Case 3：C 合法更新某 GPR 槽，恢复采用该槽的新值。
-Case 4：来自 S 态的 Trap，保持 frame 中返回 S 的意图，不强行切 U。
-Requirements：先处理返回 CSR，再恢复借用的通用寄存器，最后恢复 sp；不能提前丢失 frame 基址或将 badvaddr/cause 当作 epc。
 
-## __alltraps
-Pre：硬件转入入口，当前为基础框架支持的内核栈场景。
-Post：SAVE_ALL 后将 frame 的当前地址作为 trap 首参；普通调用返回后仍能定位同一 frame，再到 __trapret。
-Case 1：同步异常，经 C 分类处理和 epc 调整后返回。
-Case 2：异步中断，经 C 处理后正确返回原执行流。
-Requirements：a0 不是原始程序 sp 或 CSR；调用应能返回，不用 tail；不能只靠 caller-saved 临时寄存器跨 C 调用保存 frame 地址。
+## RESTORE_ALL 宏
 
-## 验证
-单文件汇编编译仅证明编译单元成立，不代表完整内核通过。静态检查偏移、GPR 槽、CSR、sp 顺序和修改边界。PMM 与 B/C handlers 不完整时明确待联调，不修改队友任务来伪造通过。后续运行 Context，并补查原始 sp/ra、a0 传参、处理后 epc、2/4 字节断点和持续时钟返回。未实跑不填写通过。
+**Pre-Condition：** sp 指向完整、有效且经 C 处理后的 trapframe；本轮采用框架支持的内核栈入口。
+
+**Post-Condition：** x1、x3～x31 与各自槽值一致，x2 使用保存的 sp 槽；sstatus、sepc 在执行 sret 前采用处理后的 status、epc。x0 保持零。帧存储不被破坏。
+
+**Case 1：处理函数不改变帧。** 恢复被中断程序的 GPR 和返回位置，即使 C 实际使用过 ra、a0、临时寄存器，也不能丢失原值。
+
+**Case 2：处理函数修改返回位置。** 采用新的 epc；两字节和四字节断点均不由恢复宏重复调整。
+
+**Case 3：处理函数修改寄存器槽。** 对 t0、a0 或 s2 等槽的合法修改应体现在返回后的寄存器中，其他槽保持各自值。
+
+**Case 4：处理函数修改返回状态。** 将修改后的 status 交给 sret，不用硬编码常量覆盖它；最终位变化按实际处理器或模拟器语义解释。
+
+**Requirements：** 恢复 CSR 时借用的 GPR 也须正确恢复；不能因提前恢复 sp 丢失帧地址。不要通过增加整段新保存逻辑重复或改变 SAVE_ALL 的既定语义。
+
+## __alltraps 调用部分
+
+**Pre-Condition：** 硬件已进入入口，原有 SAVE_ALL 已完整构造帧；栈可用于正常 C 调用。
+
+**Post-Condition：** trap 收到该帧的地址；调用返回后能够继续使用同一帧进入 __trapret。
+
+**Case 1：同步异常。** C 根据异常类型处理并可更新 epc；返回流程尊重处理结果。
+
+**Case 2：异步中断。** C 完成中断处理后可返回原执行位置；本任务不负责重设时钟或累计 ticks。
+
+**Requirements：** a0 必须是当前帧地址，不是原始 sp、原始 a0 或 sepc。调用必须能够返回，不能使用 tail 取代正常调用，也不能只靠 caller-saved 寄存器跨调用保留唯一帧地址。
+
+## 验证与边界
+
+**Pre-Condition：** RISC-V 工具链可用，原始测试未被修改。
+
+**Post-Condition：** 真实记录验证范围、结果和依赖。
+
+**Case 1：仅能编译汇编单元。** 记录单文件通过，完整运行仍待验证。
+
+**Case 2：独立测试可运行。** 使用单独测试镜像验证真实汇编，明确测试 C handler 为夹具，不把其行为当作正式异常处理已完成。
+
+**Case 3：其他模块齐备。** 再运行原有 Context 和整机检查，分别记录分数及持续中断返回表现。
+
+**Requirements：** 没执行的项目不能填通过；发现失败应保留输出，先定位实现、测试与运行环境的差异，不修改原始评分预期来迁就结果。
