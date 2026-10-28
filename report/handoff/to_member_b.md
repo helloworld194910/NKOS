@@ -29,9 +29,9 @@
 
 ## 代码和证据链接
 
-- [基础汇编](../../kern/trap/trapentry.S)、[返回约定](../member_a_handoff.md)。
-- [个人报告](../member_a_report.md)、[完整提示词](../../prompts/member_a_prompt_summary.md)。
-- [基础运行日志](../../logs/member-a-context-qemu.log)、[扩展运行日志](../../logs/member-a-switch-qemu.log)。
-- [基础截图](../../images/member-a-context.png)、[扩展截图](../../images/member-a-switch.png)。
+- [基础汇编](../../code/kern/trap/trapentry.S)、[返回约定](trap_return_contract.md)。
+- [个人报告](../report.md)、[完整提示词](../prompt.md)。
+- [基础运行日志](../logs/member-a-context-qemu.log)、[扩展运行日志](../logs/member-a-switch-qemu.log)。
+- [基础截图](../images/member-a-context.png)、[扩展截图](../images/member-a-switch.png)。
 
 环境提醒：QEMU 4.1.1 的 SPIE 后值与现代规范不同；现有测试按对应版本源码解释，仍检查保存的 SPIE 是否正确影响返回 SIE。不要只根据 SPIE 后值判断汇编错误。

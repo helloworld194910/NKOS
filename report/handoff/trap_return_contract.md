@@ -46,7 +46,7 @@ A主写整体逻辑、功能模块一、扩展底层、个人知识点和AI经�
 
 前两场景返回 SIE=0，第三场景返回 SIE=1；三个场景均检查 SPP 清零和环境规定的 SPIE 后值。总结果 `RESULT: 3/3 context scenarios passed`，QEMU 退出码为 0。测试直接链接真实 trapentry.S，测试专用 trap 不进入正式构建。
 
-复现命令：`python3 tests/member_a/run_context.py`（工程根目录）。证据：logs/member-a-context-build.log、logs/member-a-context-environment.log、logs/member-a-context-qemu.log、logs/member-a-context-result.json。JSON 保存被测源码哈希，需与对应运行版本配合阅读。
+复现命令：`python3 code/tests/member_a/run_context.py`（工程根目录）。证据：logs/member-a-context-build.log、logs/member-a-context-environment.log、logs/member-a-context-qemu.log、logs/member-a-context-result.json。JSON 保存被测源码哈希，需与对应运行版本配合阅读。
 
 首次因 SPIE 环境假设失败的输出与旧版文本已保留；此后修订了测试规格，未修改正式汇编。正式内核 Context/Illegal/Timer 评分、持续时钟中断返回和 S→U→S Challenge 均不属于本次通过范围。尚未引入其他成员的新实现。
 

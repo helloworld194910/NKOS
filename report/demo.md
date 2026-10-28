@@ -7,7 +7,7 @@
 在 VS Code 的 WSL 终端执行这一整行：
 
 ```bash
-python3 /home/yxqjrh/lab3/lab3_new/tests/member_a/run_context.py
+python3 /home/yxqjrh/lab3/lab3_new/code/tests/member_a/run_context.py
 ```
 
 等脚本自动退出，确认三个 PASS 和 RESULT: 3/3 context scenarios passed。真实截图保留命令、QEMU_PROFILE 和结果，尽量缩短无关滚屏；不要手工更改输出。文件名建议 member-a-context.png。
@@ -17,7 +17,7 @@ python3 /home/yxqjrh/lab3/lab3_new/tests/member_a/run_context.py
 ## 扩展演示
 
 ```bash
-python3 /home/yxqjrh/lab3/lab3_new/tests/member_a_switch/run_switch.py
+python3 /home/yxqjrh/lab3/lab3_new/code/tests/member_a_switch/run_switch.py
 ```
 
 确认三行 PASS、六次 OBSERVED 及 RESULT: 3/3 switch cases passed。截图保留一轮真实 cause=8、SPP=0、用户 sp、kernel_frame 及汇总。文件名建议 member-a-switch.png。
@@ -33,13 +33,13 @@ python3 /home/yxqjrh/lab3/lab3_new/tests/member_a_switch/run_switch.py
 若要先观察基础恢复，可先运行上面的基础脚本完成构建，再在一个 WSL 终端启动该镜像的调试模式：
 
 ```bash
-qemu-system-riscv64 -machine virt -nographic -bios default -m 128M -smp 1 -device loader,file=/home/yxqjrh/lab3/lab3_new/obj/member-a-context/ucore.img,addr=0x80200000 -s -S
+qemu-system-riscv64 -machine virt -nographic -bios default -m 128M -smp 1 -device loader,file=/home/yxqjrh/lab3/lab3_new/code/obj/member-a-context/ucore.img,addr=0x80200000 -s -S
 ```
 
 在另一个 WSL 终端执行：
 
 ```bash
-riscv64-unknown-elf-gdb /home/yxqjrh/lab3/lab3_new/obj/member-a-context/kernel
+riscv64-unknown-elf-gdb /home/yxqjrh/lab3/lab3_new/code/obj/member-a-context/kernel
 ```
 
 GDB 内按顺序逐条输入：

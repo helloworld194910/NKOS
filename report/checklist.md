@@ -18,10 +18,10 @@
 | 扩展共同接入 | 正式用户代码、页表与上层 callback | 按既定接口连接，验证双方实际代码组合后的 S→U→S |
 | 完整回归与提交复核 | 上述模块合并后的工程 | 配合原评分、基础正常运行、证据与最终版本一致性检查 |
 
-分工已经明确：A 负责汇编、栈与底层恢复；B 负责中断时钟；C 负责 PMM、异常和用户态上层。函数签名、动作值和 sscratch 约定属于 A 可先定义的接口设计，现已写入 member_a_switch_handoff.md。不能把未拿到的实际代码写成已审阅，也不把独立夹具记为其他成员的成果。
+分工已经明确：A 负责汇编、栈与底层恢复；B 负责中断时钟；C 负责 PMM、异常和用户态上层。函数签名、动作值和 sscratch 约定属于 A 可先定义的接口设计，现已写入 [扩展协议](handoff/switch_contract.md)。不能把未拿到的实际代码写成已审阅，也不把独立夹具记为其他成员的成果。
 
 ## 交付入口
 
-个人报告：member_a_report.md；提示词汇总：../prompts/member_a_prompt_summary.md；基础交接：member_a_handoff.md；扩展协议：member_a_switch_handoff.md；演示：member_a_demo.md。
+[个人报告](report.md)；[提示词汇总](prompt.md)；[基础交接](handoff/trap_return_contract.md)；[扩展协议](handoff/switch_contract.md)；[演示步骤](demo.md)。
 
 代码与既有实测材料保存于 lab3_yang 的 3dc7c68。交接 ZIP 供本人手动发给队友，不推送 ZIP，不自动联系任何人。

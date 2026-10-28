@@ -1,5 +1,7 @@
 # 操作系统实验报告
 
+> 目录说明：文中的工程相对路径、编译和测试命令以仓库的 `code/` 为工作目录；原实测日志归档在 `report/logs/`，重新运行生成的日志位于 `code/logs/`。整理前的文件位置可在 Git 历史中查看。
+
 > 本轮为 A 侧接口与交接文字定稿：实现和两组通过日志均不变；上层按本文接口对接，不以事先确认作为继续开发的条件。原有阶段表述保留在 Git 历史中。
 
 ## 实验基本信息
@@ -690,7 +692,7 @@ python3 tests/member_a/run_context.py
 
 基础实现与上下文验证材料已提交至本地 `lab3_yang` 的 `0cf26be`；扩展及个人材料已在 `3dc7c68` 保存；本轮仅对交接和文档作定稿整理。本节保留原始日志，并附本人实际运行的两张截图。
 
-![Trap 基础上下文独立验证](../images/member-a-context.png)
+![Trap 基础上下文独立验证](images/member-a-context.png)
 
 图：本人 WSL 真实运行，四字节断点、两字节断点及处理后帧验证均通过。
 
@@ -708,7 +710,7 @@ python3 tests/member_a_switch/run_switch.py
 
 证据：`logs/member-a-switch-build.log`、`logs/member-a-switch-environment.log`、`logs/member-a-switch-qemu.log`、`logs/member-a-switch-result.json`。该扩展测试首次实际运行即通过，没有虚构的失败记录。A 的底层代码与夹具已由本人实际运行，具体提交号以仓库记录为准。
 
-![S→U→S 底层实现独立验证](../images/member-a-switch.png)
+![S→U→S 底层实现独立验证](images/member-a-switch.png)
 
 图：本人 WSL 真实运行，U 态来源、内核栈帧及三个扩展场景的检查结果。
 

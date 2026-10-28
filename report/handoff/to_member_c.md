@@ -24,7 +24,7 @@ long member_a_user_trap(struct trapframe *tf);
 - 你负责安装、撤销用户映射，恢复 satp 并刷新 TLB；我的底层不改 satp。内核页保持 U=0。
 - 我保存内核 ra/sp/gp/tp/s0～s11 及 stvec/sscratch/sstatus/sepc/sie。扩展当前为单核、单实例、非嵌套、整数上下文，窗口内屏蔽中断。
 
-接口已由我定稿，可以直接按约实现；有具体不兼容再沟通，不需要先等双方批准才能开始。详细栈协议见[底层接口与栈约定](../member_a_switch_handoff.md)。
+接口已由我定稿，可以直接按约实现；有具体不兼容再沟通，不需要先等双方批准才能开始。详细栈协议见[底层接口与栈约定](switch_contract.md)。
 
 ## 我还需要你完成、提供什么
 
@@ -41,9 +41,9 @@ long member_a_user_trap(struct trapframe *tf);
 
 ## 现成夹具如何使用
 
-真实底层：[switch.S](../../extensions/member_a_switch/switch.S)、[switch.h](../../extensions/member_a_switch/switch.h)。
+真实底层：[switch.S](../../code/extensions/member_a_switch/switch.S)、[switch.h](../../code/extensions/member_a_switch/switch.h)。
 
-我的测试用户程序、页表及 callback 在 [tests/member_a_switch/](../../tests/member_a_switch/)，只作隔离验证。你可以参考或复用并注明来源，完成自己的正式接入与验证；不要求为避免复用而重写一套相同代码。报告中区分原有夹具、你的改动及共同联调即可。
+我的测试用户程序、页表及 callback 在 [tests/member_a_switch/](../../code/tests/member_a_switch/)，只作隔离验证。你可以参考或复用并注明来源，完成自己的正式接入与验证；不要求为避免复用而重写一套相同代码。报告中区分原有夹具、你的改动及共同联调即可。
 
 ## 仓库基线与复现
 
@@ -52,13 +52,13 @@ long member_a_user_trap(struct trapframe *tf);
 在工程根目录运行：
 
 ```bash
-python3 tests/member_a/run_context.py
+python3 code/tests/member_a/run_context.py
 ```
 
 ```bash
-python3 tests/member_a_switch/run_switch.py
+python3 code/tests/member_a_switch/run_switch.py
 ```
 
 两组独立测试各 3/3 通过，不等于原 Context/Illegal/Timer 评分通过。正式评分仍需你和 B 的模块齐备。
 
-阅读入口：[个人报告](../member_a_report.md)、[完整提示词](../../prompts/member_a_prompt_summary.md)、[基础运行日志](../../logs/member-a-context-qemu.log)、[扩展运行日志](../../logs/member-a-switch-qemu.log)、[截图目录](../../images/)。
+阅读入口：[个人报告](../report.md)、[完整提示词](../prompt.md)、[基础运行日志](../logs/member-a-context-qemu.log)、[扩展运行日志](../logs/member-a-switch-qemu.log)、[截图目录](../images/)。

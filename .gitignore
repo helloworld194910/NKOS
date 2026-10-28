@@ -1,6 +1,13 @@
 /obj/
 /bin/
-__pycache__/
-*.pyc
+/logs/
 /.qemu*.out
 /.gdb.in
+/code/obj/
+/code/bin/
+/code/build/
+/code/logs/
+__pycache__/
+*.pyc
+/code/.qemu*.out
+/code/.gdb.in

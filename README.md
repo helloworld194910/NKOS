@@ -1,37 +1,42 @@
 # Lab3：中断与异常
 
-本分支为杨茜茹（2412790，成员 A）的阶段交付。基础汇编、S→U→S 底层实现及两组独立 QEMU 验证已完成；正式 PMM、异常/中断处理、用户态上层接入及原评分回归由后续分工完成。
+杨茜茹（2412790）的工作分支 `lab3_yang`。Trap 基础汇编、S→U→S 底层实现及两组独立 QEMU 验证已完成；正式内核联调与原评分尚未完成。
 
-## 小组交接
+## 文件入口
 
-- **[交接总入口](docs/handoff/README.md)**
-- **[给成员 B：中断时钟与返回联调](docs/handoff/to_member_b.md)**
-- **[给成员 C：PMM、异常与用户态上层接入](docs/handoff/to_member_c.md)**
-- [底层扩展接口与栈协议](docs/member_a_switch_handoff.md)
+| 目录或文件 | 内容 |
+| --- | --- |
+| [code/](code/) | 内核、公共库、构建工具、扩展及独立测试 |
+| [report/report.md](report/report.md) | 当前个人实验报告，保留课程模板的六章结构 |
+| [report/prompt.md](report/prompt.md) | 三份完整提示词，均使用四段模板 |
+| [report/images/](report/images/) | 两张实际测试截图 |
+| [report/handoff/](report/handoff/README.md) | 给成员 B、C 的交接说明及接口协议 |
+| [report/demo.md](report/demo.md) | 本人部分的演示命令与讲解 |
+| [report/logs/](report/logs/) | 已完成测试的原始日志与结果记录 |
+| [report/checklist.md](report/checklist.md) | 当前完成情况及后续所需输入 |
+| [report/notes/](report/notes/) | 设计细节、分项验证说明与提示词分稿；正文以 report.md、prompt.md 为准 |
 
-尚未开始工作的成员可从 `lab3_yang` 创建自己的工作分支，保留共同历史后并行实现。分模块提交，保留另一位成员在共享 trap.c 中的函数。
+## 队友交接
 
-## 报告与证据
+- [成员 B：中断、时钟与返回联调](report/handoff/to_member_b.md)
+- [成员 C：PMM、异常及用户态上层接入](report/handoff/to_member_c.md)
+- [Trap 返回约定](report/handoff/trap_return_contract.md)
+- [S→U→S 接口与栈协议](report/handoff/switch_contract.md)
 
-- [A 的个人报告](docs/member_a_report.md)
-- [三份完整提示词](prompts/member_a_prompt_summary.md)
-- [演示与截图步骤](docs/member_a_demo.md)
-- [完成情况及后续依赖](docs/member_a_delivery_checklist.md)
-- [基础上下文日志](logs/member-a-context-qemu.log) / [截图](images/member-a-context.png)
-- [S→U→S 日志](logs/member-a-switch-qemu.log) / [截图](images/member-a-switch.png)
+尚未开始的成员可从本分支创建自己的工作分支，保留共同历史。交接压缩包另行发送，不放进仓库。
 
-## 独立验证
+## 复现已完成的两组独立测试
 
-在已配置 RISC-V GCC、objcopy、QEMU 的 WSL 中，于工程根目录运行：
+在仓库根目录的 WSL 终端分别执行：
 
 ```bash
-python3 tests/member_a/run_context.py
+python3 code/tests/member_a/run_context.py
 ```
 
 ```bash
-python3 tests/member_a_switch/run_switch.py
+python3 code/tests/member_a_switch/run_switch.py
 ```
 
-两组各 3/3 通过，结果限定于独立测试。运行环境为 QEMU 4.1.1，版本差异及首次 SPIE 测试问题见报告。不能把这些结果当作原 Context/Illegal/Timer 评分；完整内核仍需对应模块齐备。
+脚本自动定位 `code/`，构建文件写入 `code/obj/`，新日志写入 `code/logs/`。仓库归档的旧日志位于 `report/logs/`，不由复跑覆盖。
 
-仓库只存代码、报告、提示词与证据；交接 ZIP 由本人单独发给队友，不上传。
+已有记录为两组各 3/3 通过；它们不代表原 Context/Illegal/Timer 评分已通过。完整工程编译从 `code/` 开始，例如 `make -C code`，实际运行仍需相应模块完成。
