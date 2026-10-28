@@ -1,7 +1,13 @@
 /obj/
 /bin/
 /logs/
-/images/
+/images/*
+!/images/member-b-summary.png
+!/images/member-b-timer-default.png
+!/images/member-b-timer-three.png
+!/images/member-b-debug-grade.png
+!/images/member-b-stvec.png
+!/images/member-b-sync.png
 __pycache__/
 *.py[cod]
 *.o
