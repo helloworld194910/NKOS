@@ -31,6 +31,27 @@ CASES = {
                       "PASS: mode=0 timer", "PASS: stvec restored"], 0),
 }
 
+def select_march(cc, build, logs):
+    """Probe CSR/fence/AMO assembly instead of guessing from GCC's version.
+
+    Older toolchains include CSR and fence.i in their rv64imac ISA spelling;
+    newer ones require explicit Zicsr/Zifencei extension names.
+    """
+    source = ".text\ncsrr a0, sstatus\nfence.i\namoadd.d a0, a1, (a2)\n"
+    with (logs / "isa-probe-build.log").open("w", encoding="utf-8") as log:
+        for march in ("rv64imac_zicsr_zifencei", "rv64imac"):
+            command = [cc, "-march=" + march, "-mabi=lp64", "-x", "assembler",
+                       "-c", "-", "-o", str(build / "isa-probe.o")]
+            probe = subprocess.run(command, cwd=ROOT, input=source,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   text=True)
+            log.write("+ " + " ".join(command) + "\n" + probe.stdout)
+            log.write("exit=" + str(probe.returncode) + "\n")
+            if probe.returncode == 0:
+                return march
+    raise RuntimeError("Compiler cannot assemble required CSR/fence/AMO instructions; "
+                       "inspect " + str(logs / "isa-probe-build.log"))
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--cases", nargs="+", choices=list(CASES), default=list(CASES))
@@ -45,7 +66,8 @@ def main():
     qemu = shutil.which("qemu-system-riscv64")
     if not all((cc, oc, od, qemu)):
         raise RuntimeError("Need RISC-V GCC/objcopy/objdump and QEMU in PATH")
-    flags = ["-march=rv64imac_zicsr_zifencei", "-mabi=lp64", "-mcmodel=medany",
+    march = select_march(cc, build, logs)
+    flags = ["-march=" + march, "-mabi=lp64", "-mcmodel=medany",
              "-Dsbadaddr=0x143",
              "-mno-relax", "-msmall-data-limit=0", "-std=gnu99", "-O2", "-g",
              "-nostdinc", "-ffreestanding", "-fno-builtin", "-fno-stack-protector",
@@ -62,6 +84,7 @@ def main():
               "started_utc": datetime.now(timezone.utc).isoformat(),
               "base_commit": "17205d43fa49958bf965b046eb87d96c57bd36f9",
               "gcc": subprocess.check_output([cc, "--version"], text=True).splitlines()[0],
+              "march": march,
               "qemu": subprocess.check_output([qemu, "--version"], text=True).splitlines()[0],
               "source_sha256": hashes, "cases": {}, "passed": False}
     result_file = logs / "result.json"
@@ -69,6 +92,7 @@ def main():
         result_file.write_text(json.dumps(report, indent=2, ensure_ascii=False)+"\n", encoding="utf-8")
     save()
     print(report["gcc"], report["qemu"], sep="\n", flush=True)
+    print("ISA flags: -march=" + march, flush=True)
 
     def run_build(cmd, log):
         log.write("+ " + " ".join(map(str, cmd)) + "\n"); log.flush()

@@ -22,7 +22,7 @@
 
 ## 环境与验证
 
-已使用 WSL Ubuntu、RISC-V GCC 14.2.0+19、QEMU 4.1.1（virt，单 hart，128 MiB）验证。依赖 `riscv64-unknown-elf-gcc`、`objcopy`、`objdump`、`qemu-system-riscv64` 和 Python 3。
+已使用 WSL Ubuntu、SiFive GCC-Metal 10.2.0-2020.12.8 / RISC-V GCC 14.2.0+19、QEMU 4.1.1（virt，单 hart，128 MiB）验证。依赖 `riscv64-unknown-elf-gcc`、`objcopy`、`objdump`、`qemu-system-riscv64` 和 Python 3。
 
 从工程根目录运行 B 的全部独立验证：
 
@@ -38,7 +38,7 @@ python3 extensions/member_b/run.py --cases sync stvec
 
 完整六组场景覆盖中断分类、时钟边界、持续返回、默认/自定义关机、DEBUG_GRADE、stvec 两模式及临界区状态恢复；另检查非正关机阈值被拒绝。此前六组独立场景均通过。脚本直接链接正式中断处理、时钟代码及既有汇编入口，`fixture.c` 只提供实验所需启动、控制台和有限断点处理，不是正式异常实现。
 
-运行会生成被 Git 忽略的 `obj/` 和 `logs/`，其中 `result.json` 记录环境、源码哈希及实际结果。独立脚本自动使用 `-Dsbadaddr=0x143`，兼容现代汇编器对旧 CSR 名称的限制，不修改原汇编。shell 脚本固定采用 LF 换行。
+运行会生成被 Git 忽略的 `obj/` 和 `logs/`，其中 `result.json` 记录环境、源码哈希及实际结果。独立脚本先实际试编译 CSR、fence.i 与 AMO 指令：新工具链采用 `rv64imac_zicsr_zifencei`，旧工具链采用 `rv64imac`，不要求更换编译器。探测输出保存为 `logs/member-b/isa-probe-build.log`，所选 ISA 记录在 `result.json`。脚本同时自动使用 `-Dsbadaddr=0x143`，兼容现代汇编器对旧 CSR 名称的限制，不修改原汇编。shell 脚本固定采用 LF 换行。
 
 完整工程的常规命令为：
 
