@@ -23,6 +23,9 @@ static inline void __intr_restore(bool flag) {
     do {                   \
         x = __intr_save(); \
     } while (0)
-#define local_intr_restore(x) __intr_restore(x);
+#define local_intr_restore(x) \
+    do {                      \
+        __intr_restore(x);    \
+    } while (0)
 
 #endif /* !__KERN_SYNC_SYNC_H__ */
