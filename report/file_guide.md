@@ -2,7 +2,7 @@
 
 本页说明当前分支中每个文件的用途。GitHub 列表右侧显示的是最近一次修改该路径的提交说明；文件职责请以本索引和相应接口文档为准。
 
-成员：杨茜茹（2412790，Trap 汇编与态切换底层）、程子涵（2413921，中断时钟与机制补充）、于蕾（2411824，内存依赖、异常与用户态上层）。
+成员：杨茜茹（2412790，Trap 汇编与态切换底层）、程子涵（2413921，中断时钟与机制补充）、于蕾（2411824，内存依赖、异常与最终集成交付）。
 
 已归档的源码与运行证据保持原样；尚未取得的队友实现、原评分和正式上层结果不写成完成。新运行日志生成在 code/logs/，已提交的历史记录位于 report/logs/。
 
@@ -19,8 +19,8 @@
 | --- | --- |
 | [code/Makefile](../code/Makefile) | RISC-V 编译、链接、QEMU/GDB 与原评分目标；工程工作目录为 code/。 |
 | [code/README.md](../code/README.md) | 工程布局、模块归属、独立测试入口及当前验证范围。 |
-| [code/extensions/member_a_switch/switch.S](../code/extensions/member_a_switch/switch.S) | A 的独立态切换汇编：内核调用上下文、用户 Trap 栈及两类返回路径。 |
-| [code/extensions/member_a_switch/switch.h](../code/extensions/member_a_switch/switch.h) | A/C 对接签名、动作值及状态返回约定。 |
+| [code/extensions/member_a_switch/switch.S](../code/extensions/member_a_switch/switch.S) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [code/extensions/member_a_switch/switch.h](../code/extensions/member_a_switch/switch.h) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
 | [code/kern/debug/assert.h](../code/kern/debug/assert.h) | 内核断言和 panic 相关定义。 |
 | [code/kern/debug/kdebug.c](../code/kern/debug/kdebug.c) | 内核符号、调试信息和栈相关打印辅助。 |
 | [code/kern/debug/kdebug.h](../code/kern/debug/kdebug.h) | 内核调试辅助接口声明。 |
@@ -67,10 +67,10 @@
 | [code/tests/member_a/context_fixture.c](../code/tests/member_a/context_fixture.c) | 独立内核及测试 handler；检查真实帧、CSR 和处理后帧生效。 |
 | [code/tests/member_a/context_probe.S](../code/tests/member_a/context_probe.S) | 显式 2/4 字节断点、通用寄存器与返回状态探针。 |
 | [code/tests/member_a/run_context.py](../code/tests/member_a/run_context.py) | 构建真实 trapentry.S 的独立镜像，按 QEMU 版本核对 SPIE，并检查三场景。 |
-| [code/tests/member_a_switch/abi_probe.S](../code/tests/member_a_switch/abi_probe.S) | 内核侧调用探针，验证调用前后 ABI 保存状态。 |
-| [code/tests/member_a_switch/fixture.c](../code/tests/member_a_switch/fixture.c) | 态切换自测页表、独立栈、上层回调与结果断言；不是 C 的正式接入。 |
-| [code/tests/member_a_switch/run_switch.py](../code/tests/member_a_switch/run_switch.py) | 独立构建态切换镜像，检查三场景与运行结果。 |
-| [code/tests/member_a_switch/user_probe.S](../code/tests/member_a_switch/user_probe.S) | U 态运行、ecall 请求、恢复后寄存器和用户栈检查。 |
+| [code/tests/member_a_switch/abi_probe.S](../code/tests/member_a_switch/abi_probe.S) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [code/tests/member_a_switch/fixture.c](../code/tests/member_a_switch/fixture.c) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [code/tests/member_a_switch/run_switch.py](../code/tests/member_a_switch/run_switch.py) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [code/tests/member_a_switch/user_probe.S](../code/tests/member_a_switch/user_probe.S) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
 | [code/tools/boot.ld](../code/tools/boot.ld) | 框架保留的引导链接脚本；当前内核链接设置另见 Makefile/kernel.ld。 |
 | [code/tools/function.mk](../code/tools/function.mk) | Makefile 使用的编译、依赖与目标生成辅助宏。 |
 | [code/tools/gdbinit](../code/tools/gdbinit) | 客体 GDB 的初始化配置。 |
@@ -92,26 +92,26 @@
 | [report/demo.md](demo.md) | A 的独立验证命令、讲解要点和尚未执行的 GDB 观察方案。 |
 | [report/file_guide.md](file_guide.md) | 本索引，逐项说明文件用途与贡献、证据范围。 |
 | [report/handoff/README.md](handoff/README.md) | 小组交接索引，指向给程子涵、于蕾的说明及共用接口。 |
-| [report/handoff/switch_contract.md](handoff/switch_contract.md) | S→U→S 函数签名、栈、sscratch、状态与回调动作协议。 |
+| [report/archive/s-u-s/switch_contract.md](archive/s-u-s/switch_contract.md) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
 | [report/handoff/to_member_b.md](handoff/to_member_b.md) | 给程子涵：A 已完成内容、中断返回约束及需要 B 提供的代码与结果。 |
-| [report/handoff/to_member_c.md](handoff/to_member_c.md) | 给于蕾：底层接口、上层接入要求及需要 C 提供的正式代码与验证。 |
+| [report/handoff/to_member_c.md](handoff/to_member_c.md) | 给于蕾：Lab2 依赖、异常处理、正式联调与最终集成提交；不再要求用户态上层。 |
 | [report/handoff/trap_return_contract.md](handoff/trap_return_contract.md) | 基础 Trap 帧传递、寄存器恢复和异常/中断返回的衔接约定。 |
 | [report/notes/member_a_context_validation.md](notes/member_a_context_validation.md) | 上下文独立验证的范围、断言和 SPIE 预期修订说明。 |
-| [report/notes/member_a_switch_report.md](notes/member_a_switch_report.md) | 态切换底层的分项报告素材；当前小组报告以 report.md 为准。 |
-| [report/notes/member_a_switch_validation.md](notes/member_a_switch_validation.md) | 态切换独立三场景的观察点、边界与验证范围。 |
+| [report/archive/s-u-s/module_report.md](archive/s-u-s/module_report.md) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [report/archive/s-u-s/validation.md](archive/s-u-s/validation.md) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
 | [report/notes/member_a_trap_context.md](notes/member_a_trap_context.md) | 基础 Trap 实现设计、寄存器槽位与偏移说明。 |
 | [report/notes/prompts/member_a_context_validation.md](notes/prompts/member_a_context_validation.md) | 上下文独立验证的单独提示词分稿。 汇总入口为 report/prompt.md。 |
-| [report/notes/prompts/member_a_switch.md](notes/prompts/member_a_switch.md) | 态切换底层与隔离验证的单独提示词分稿。 汇总入口为 report/prompt.md。 |
+| [report/archive/s-u-s/prompt.md](archive/s-u-s/prompt.md) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
 | [report/notes/prompts/member_a_trap_context.md](notes/prompts/member_a_trap_context.md) | Trap 基础实现的单独提示词分稿。 汇总入口为 report/prompt.md。 |
-| [report/prompt.md](prompt.md) | 三份 A 完整四段提示词及 B/C 任务提示词待填位置。 |
-| [report/report.md](report.md) | 以课程模板为底稿的小组报告：已填公共信息和 A 实测进度，B/C 过程与结果待本人填写。 |
+| [report/prompt.md](prompt.md) | 当前正式提示词汇总：杨茜茹两份完整提示词，以及程子涵、于蕾的正式任务待填位置。 |
+| [report/report.md](report.md) | 当前小组报告；按最新版手册移除已取消的态切换任务，待填位置按姓名标明。 |
 
 ## 真实截图
 
 | 文件 | 用途与当前归属 |
 | --- | --- |
 | [report/images/member-a-context.png](images/member-a-context.png) | A 在 WSL 运行上下文独立测试的真实截图，三场景通过。 |
-| [report/images/member-a-switch.png](images/member-a-switch.png) | A 在 WSL 运行 S→U→S 独立测试的真实截图，含实际 U 态 Trap 与通过结果。 |
+| [report/images/member-a-switch.png](images/member-a-switch.png) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
 
 ## 运行记录与迭代快照
 
@@ -129,8 +129,18 @@
 | [report/logs/member-a-context-environment.log](logs/member-a-context-environment.log) | 上下文独立验证的实际环境及版本依据；保留原始记录。 |
 | [report/logs/member-a-context-qemu.log](logs/member-a-context-qemu.log) | 上下文独立验证的固件启动与测试输出；保留原始记录。 |
 | [report/logs/member-a-context-result.json](logs/member-a-context-result.json) | 上下文独立验证的源码哈希、环境和判定结果；保留原始记录。 |
-| [report/logs/member-a-switch-build.log](logs/member-a-switch-build.log) | S→U→S 独立验证的编译/链接命令与输出；保留原始记录。 |
-| [report/logs/member-a-switch-environment.log](logs/member-a-switch-environment.log) | S→U→S 独立验证的实际环境及版本依据；保留原始记录。 |
-| [report/logs/member-a-switch-qemu.log](logs/member-a-switch-qemu.log) | S→U→S 独立验证的固件启动与测试输出；保留原始记录。 |
-| [report/logs/member-a-switch-result.json](logs/member-a-switch-result.json) | S→U→S 独立验证的源码哈希、环境和判定结果；保留原始记录。 |
+| [report/logs/member-a-switch-build.log](logs/member-a-switch-build.log) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [report/logs/member-a-switch-environment.log](logs/member-a-switch-environment.log) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [report/logs/member-a-switch-qemu.log](logs/member-a-switch-qemu.log) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
+| [report/logs/member-a-switch-result.json](logs/member-a-switch-result.json) | 已取消 Challenge 1 的历史探索材料，不属于当前课程要求、正式交接或验收待办。 |
 | [report/logs/member-a-trapentry-build.log](logs/member-a-trapentry-build.log) | Trap 汇编单文件编译的编译/链接命令与输出；保留原始记录。 |
+
+## 教师取消 Challenge 1 后的说明入口
+
+| 文件 | 用途 |
+| --- | --- |
+| [report/archive/s-u-s/README.md](archive/s-u-s/README.md) | 标明旧版任务已取消；历史内容不作为现行分工和验收要求。 |
+| [report/archive/s-u-s/report-before-cancellation.md](archive/s-u-s/report-before-cancellation.md) | 标明旧版任务已取消；历史内容不作为现行分工和验收要求。 |
+| [report/archive/s-u-s/prompts-before-cancellation.md](archive/s-u-s/prompts-before-cancellation.md) | 标明旧版任务已取消；历史内容不作为现行分工和验收要求。 |
+| [code/extensions/member_a_switch/README.md](../code/extensions/member_a_switch/README.md) | 标明旧版任务已取消；历史内容不作为现行分工和验收要求。 |
+| [code/tests/member_a_switch/README.md](../code/tests/member_a_switch/README.md) | 标明旧版任务已取消；历史内容不作为现行分工和验收要求。 |

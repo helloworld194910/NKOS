@@ -14,18 +14,6 @@ python3 /home/yxqjrh/lab3/lab3_new/code/tests/member_a/run_context.py
 
 讲解：我负责在汇编入口将当前 Trap frame 地址作为 a0 传给 C，并恢复处理后的上下文。原程序 a0、ra 已在帧中保存；sp 最后恢复，避免余下槽使用错误基址。三个测试分别检查两种长度的断点和 C 修改有效帧后的行为。
 
-## 扩展演示
-
-```bash
-python3 /home/yxqjrh/lab3/lab3_new/code/tests/member_a_switch/run_switch.py
-```
-
-确认三行 PASS、六次 OBSERVED 及 RESULT: 3/3 switch cases passed。截图保留一轮真实 cause=8、SPP=0、用户 sp、kernel_frame 及汇总。文件名建议 member-a-switch.png。
-
-讲解：用户栈和内核 Trap 栈分开。U 态 ecall 后，保存帧的 SPP=0、cause=8，C 回调和帧位于内核栈；第一次回调更新 a0、epc 后继续 U，用户检查结果再通过第二次 ecall 结束。结束时恢复原内核调用上下文，另有重复运行、拒绝重入和错误回调的检查。
-
-说明边界：底层接口已由我定稿；当前用户程序、页表和 callback 是自测夹具，队友将按协议接入正式上层代码。已证明我的底层在这些场景可运行，完整内核评分与实际时钟路径仍待后续联调。
-
 ## 可先准备的 GDB 观察（不要求为了截图全部执行）
 
 原 Context 相关代码在 tools/test_lab3_context.S。正式内核可启动后，原评分依赖的异常跳转由正式 handler 处理；独立测试中使用明确的返回标签。两种结果分别记录。
@@ -63,6 +51,8 @@ info registers sp ra a0 s0 s1
 
 这些是按当前源码准备的观察步骤，尚未执行，不记为额外调试通过。若已有其他 QEMU 占用 1234，不同时启动第二个调试实例。异常发生时断点进入 C 后可读 tf；__trapret 处 sp 仍为帧基址；返回标签处可以检查恢复后的寄存器。
 
-## 图片落点
+## 图片与正式验收
 
-两张真实截图最终放在工程 images/ 下，个人报告在 docs/ 下，因此链接分别应为 ../images/member-a-context.png 和 ../images/member-a-switch.png。没有图片前不写无效占位链接。可先将截图保存到 Windows 的本任务 outputs/lab3-member-a-screenshots 目录，再由后续脚本核对、导入。
+上下文独立验证截图位于 `report/images/member-a-context.png`，从本目录报告引用时使用 `images/member-a-context.png`。旧版态切换 Challenge 1 已取消，其演示不属于本次要求。
+
+正式 PMM、异常和中断实现齐备后，再在于蕾最终集成的代码上验证原 Context、两种长度断点与持续中断返回。程子涵组织完整评分和截图，于蕾最终整合与提交。

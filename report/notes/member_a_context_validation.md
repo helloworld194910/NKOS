@@ -12,7 +12,7 @@
 ## 判定与记录
 应看到三个 PASS、`RESULT: 3/3 context scenarios passed` 和 `ISOLATED_CONTEXT: PASS`。日志位于 logs/member-a-context-build.log、logs/member-a-context-qemu.log、logs/member-a-context-result.json。运行前结果标记为 false；只有构建、QEMU 正常退出以及全部输出标记均成功后才改为 true。
 
-**当前状态：本人已在 WSL 完成修订后的独立 QEMU 三场景验证，3/3 通过。** 此验证不代表原有 Context 评分通过，不覆盖时钟中断、PMM、完整异常分派或 S→U→S Challenge。断点跳转策略由测试替身提供，用于检查汇编是否尊重修改后的帧，不替代 C 同学的正式异常处理实现。
+**当前状态：本人已在 WSL 完成修订后的独立 QEMU 三场景验证，3/3 通过。** 此验证不代表原有 Context 评分通过，不覆盖时钟中断、PMM、完整异常分派。断点跳转策略由测试替身提供，用于检查汇编是否尊重修改后的帧，不替代于蕾的正式异常处理实现。
 
 ## 测试自身的保护
 探针先保存调用者寄存器，再设置测试模式值；返回后借用 sscratch 暂存 t6，以保留快照中的全部原值，随后清零。最终恢复调用者，避免测试自身破坏 C ABI。编译禁用 small-data 与链接松弛，保证刻意修改 gp 时测试 C 代码仍可执行；sie 为零，避免 SPIE 测试引入外部中断。
@@ -48,4 +48,4 @@ ERROR: QEMU failed/incomplete (exit=0)
 
 复现命令：`python3 tests/member_a/run_context.py`（工程根目录）。证据：logs/member-a-context-build.log、logs/member-a-context-environment.log、logs/member-a-context-qemu.log、logs/member-a-context-result.json。JSON 保存被测源码哈希，需与对应运行版本配合阅读。
 
-首次因 SPIE 环境假设失败的输出与旧版文本已保留；此后修订了测试规格，未修改正式汇编。正式内核 Context/Illegal/Timer 评分、持续时钟中断返回和 S→U→S Challenge 均不属于本次通过范围。尚未引入其他成员的新实现。
+首次因 SPIE 环境假设失败的输出与旧版文本已保留；此后修订了测试规格，未修改正式汇编。正式内核 Context/Illegal/Timer 评分、持续时钟中断返回 均不属于本次通过范围。尚未引入其他成员的新实现。

@@ -59,7 +59,7 @@ SAVE_ALL 先暂存原 sp，再扣除288字节。其他 GPR 原值已保存后才
 
 C 的第一个参数 a0 是 frame 地址，原程序 a0 已在第10槽，不因传参丢失。call trap 改写的 ra 最后会从第1槽恢复。正常 C ABI 保持调用返回后的 sp；288是16的倍数，原栈满足对齐时本轮不会破坏标准栈对齐。
 
-当前基础实现只使用已有内核栈，不声称具备 U 态切栈。扩展需独立入口和 A/C 共同协议。
+当前基础实现只使用已有内核栈，不声称具备 U 态切栈。教师已取消旧版用户态切换 Challenge 1，本次不新增用户态入口或共同切栈协议。
 
 ## 4. 当前已完成的检查
 
@@ -73,7 +73,7 @@ C 的第一个参数 a0 是 frame 地址，原程序 a0 已在第10槽，不因�
 
 ## 5. 后续验证
 
-已在真实工程完成 make obj/kern/trap/trapentry.o，仅证明独立汇编单元成立。完整 Context 依赖 C 的 page_init/Best-Fit和异常处理；Timer依赖B。补充核对原 sp/ra、a0、处理后epc、2/4字节断点、持续中断返回。
+已在真实工程完成 make obj/kern/trap/trapentry.o，仅证明独立汇编单元成立。完整 Context 依赖于蕾的 page_init/Best-Fit 与异常处理；Timer 依赖程子涵的中断时钟实现。补充核对原 sp/ra、a0、处理后epc、2/4字节断点、持续中断返回。
 
 原 Context 评分不是全部寄存器/CSR的穷举测试；尤其不能只凭35分声称sp/ra/gp/tp/a0每项都已单独动态验证。报告要区分实跑、静态检查和待验证。
 
@@ -91,4 +91,4 @@ C 的第一个参数 a0 是 frame 地址，原程序 a0 已在第10槽，不因�
 
 复现命令：`python3 tests/member_a/run_context.py`（工程根目录）。证据：logs/member-a-context-build.log、logs/member-a-context-environment.log、logs/member-a-context-qemu.log、logs/member-a-context-result.json。JSON 保存被测源码哈希，需与对应运行版本配合阅读。
 
-首次因 SPIE 环境假设失败的输出与旧版文本已保留；此后修订了测试规格，未修改正式汇编。正式内核 Context/Illegal/Timer 评分、持续时钟中断返回和 S→U→S Challenge 均不属于本次通过范围。尚未引入其他成员的新实现。
+首次因 SPIE 环境假设失败的输出与旧版文本已保留；此后修订了测试规格，未修改正式汇编。正式内核 Context/Illegal/Timer 评分、持续时钟中断返回 均不属于本次通过范围。尚未引入其他成员的新实现。
