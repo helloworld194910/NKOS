@@ -87,7 +87,7 @@ def main():
         raise RuntimeError(f"QEMU failed/incomplete (exit={rc}); see QEMU log")
     report.update(passed=True, qemu_exit_code=rc)
     (logs/"member-a-context-result.json").write_text(json.dumps(report, indent=2)+"\n")
-    print("ISOLATED_CONTEXT: PASS. Full-kernel grading and U-mode challenge are still pending.")
+    print("ISOLATED_CONTEXT: PASS. Full-kernel grading and integration with production handlers are still pending.")
 
 if __name__ == "__main__":
     try:
