@@ -28,7 +28,17 @@ int kern_init(void) {
     // grade_backtrace();
     idt_init();  // init interrupt descriptor table
 
-    pmm_init();  // init physical memory management
+    #ifdef MEMBER_C_MMU_PROBE
+        extern void mmu_probe(void);
+        mmu_probe();
+    #endif
+        pmm_init();  // init physical memory management
+    #ifdef MEMBER_C_SLUB_CHECK
+        slub_init();
+        slub_check();
+        pmm_manager->check(); /* Check the backing allocator again after reclamation. */
+    #endif
+
 
     idt_init();  // init interrupt descriptor table
 

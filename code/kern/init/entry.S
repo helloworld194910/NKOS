@@ -56,7 +56,12 @@ bootstack:
     .global bootstacktop
 bootstacktop:
 
+<<<<<<< HEAD
     # a page table for Sv39
+=======
+.section .data
+    # 由于我们要把这个页表放到一个页里面，因此必须 12 位对齐
+>>>>>>> origin/lab2
     .align PGSHIFT
     .global boot_page_table_sv39
 # 分配 4KiB 内存给预设的三级页表
