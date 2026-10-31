@@ -1,11 +1,11 @@
 # Lab3 实验提示词汇总
 
-根据教师最新通知，旧版 Challenge 1（用户态／内核态切换）无需完成；相关提示词不再列入本次任务。历史探索材料见 [归档说明](archive/s-u-s/README.md)。
+根据教师最新通知，旧版 Challenge 1（用户态／内核态切换）无需完成；相关提示词不再列入本次任务。本次提交已移除相关历史材料。
 
 | 成员 | 工具与模型 | 当前收录内容 |
 | --- | --- | --- |
 | 2412790-杨茜茹 | Codex 桌面应用；GPT-6.1 Sol | Trap 基础实现、上下文独立验证两份完整四段提示词 |
-| 2413921-程子涵 | 待程子涵填写 | 中断时钟、`stvec` 与临界区等实际提示词或交互记录待补 |
+| 2413921-程子涵 | 已整理在本文 B 部分 | 中断时钟、stvec、临界区规格和本轮真实适配过程已归档 |
 | 2411824-于蕾 | 待于蕾填写 | Lab2 依赖补齐与异常处理的实际提示词待补 |
 
 文中工程相对路径与命令以仓库 `code/` 为工作目录；原有运行记录归档在 `report/logs/`。基础实现初版对应提交 `1e62511`，上下文测试修订与运行记录对应 `0cf26be`。以下为根据实际约束整理的修订版，不作为首次对话的逐字记录。
@@ -280,13 +280,89 @@ void member_a_probe_edit(void);
 
 ---
 
-## 程子涵：中断、时钟统计与关机提示词（待填写）
+## 程子涵：中断、时钟与补充实验
 
-待程子涵按四段模板填写实际使用的提示词，并列明真实修改范围、阈值、边界条件和验证方式。
+以下是 2026-10-28 个人报告中已保存的规格和提示词整理稿，保持当时依赖状态描述；不是本轮重新输入的原始逐字对话。四段结构映射为：任务对应 PROMPT，输入对应 RELY，接口/约束对应 GUARANTEE，可观察验收对应 SPECIFICATION。
 
-## 程子涵：补充实验中的 AI 使用记录（待填写）
+#### 中断、时钟与关机
 
-待程子涵填写 `stvec`、临界区与宏分析中实际使用的提示词或交互过程；未使用 AI 的部分按实际情况说明。
+```text
+[PROMPT]
+你是负责 RISC-V ucore Lab3 中断模块的成员 B，程子涵 2413921。
+
+[RELY]
+初始基线为 NKOS 的 lab3_yang（17205d43fa49958bf965b046eb87d96c57bd36f9）；本轮集成基线为 e7ab36b。
+读取 trap.c、trap.h、clock.c/h、intr.c/h、riscv.h、sbi.h、原评分脚本。
+A 已实现 trapentry.S 的 SAVE_ALL→trap→RESTORE_ALL→sret 闭环。
+C 的 PMM 和 exception_handler 尚未提供；不要用生产空桩假装已经集成。
+
+[GUARANTEE]
+仅在 trap.c 的 lab3 function2 区域增加 interrupt_handler 及所需声明/宏。
+保持原函数签名、SAVE_ALL、trapframe、trap_dispatch、trap、print_ticks 和
+其他原公共函数不变；保留实验标记，署名2413921。
+用无符号最高位掩码获取原因编号，允许原评分直接传入裸编号15。
+软件/时钟/外部中断按现有 IRQ 宏分类；S态软件中断清除SSIP。
+每次S态时钟：先重设下一次事件，再仅增加一次ticks。
+每到TICK_NUM=100的整数倍调用原print_ticks。
+统计输出计数达到SHUTDOWN_AFTER时调用原sbi_shutdown。
+默认阈值10（材料未给数值，本次选择，须注明），支持编译参数覆盖，拒绝非正值。
+保留 Supervisor software interrupt / Unknown interrupt: cause 15 / 100 ticks。
+未知原因调用print_trapframe(tf)。不修改任何中断帧字段，尤其不推进异步中断EPC。
+不要在C handler里直接执行sret，不修改评分脚本逻辑。
+
+[SPECIFICATION]
+真实trap.c与A汇编在QEMU中持续返回，主流程能观察ticks=200。
+默认10次统计后在1000 ticks关机；阈值3时300 ticks关机。
+边界99/100/101恰好计数、只在100输出；非时钟不改ticks。
+带/不带中断标志的未知编号15均打印完整帧，handler不改EPC/status/GPR。
+DEBUG_GRADE触发既有100 ticks处panic调用路径，区别于原GRADE_LAB3_*宏。
+保留原始输出、编译参数、退出码和源码哈希，不能把独立测试算作原评分。
+```
+
+#### stvec 扩展
+
+```text
+[RELY]
+以B1和A真实trapentry.S为底层；查官方v1.9.1的stvec章节、v1.10修订说明、
+现行Supervisor ISA的stvec模式和WARL规则，记录章节及链接。
+
+[GUARANTEE]
+解释BASE低两位补零、MODE=00/01及保留编码，Direct所有Trap走BASE，
+Vectored同步异常走BASE、异步中断走BASE+4*cause，RV64乘数仍是4。
+解释旧版本低两位为零为何在新版本仍对应Direct，并限制兼容性结论范围。
+独立扩展目录构建真实4字节跳转槽，关闭压缩/松弛并充分对齐。
+跳板记录真实槽号，保存并恢复所用临时寄存器、原sp、sscratch约定，再进入A入口。
+写stvec后读回；平台不支持时记录SKIP/受限，不伪报通过。
+在两种模式中触发真实四字节断点、真实SSIP、真实连续时钟，检查槽号与返回；
+断点处理仅属于实验夹具，不填入C的正式函数。
+结束恢复stvec，不修改基础idt_init或正式Makefile，不把用户态切换测试算作时钟测试。
+
+[SPECIFICATION]
+检查timer槽符号相对BASE恰为20字节，并保存反汇编。
+本平台支持时：Direct三个事件皆槽0；Vectored断点槽0、软件槽1、时钟槽5。
+原始日志可复现，其他平台受限情况有明确分支。
+```
+
+#### 临界区与宏
+
+```text
+[RELY]
+阅读sync.h、intr.c、atomic.h及pmm.c的alloc/free/nr_free包装路径。
+
+[GUARANTEE]
+解释do/while(0)的一条语句语义、调用方分号、if/else和局部作用域。
+用基线头文件实际重现restore宏自带分号引发的else编译错误，保存日志；
+将restore包装成do/while(0)，不改变原save/restore函数语义。
+运行验证初始SIE=0和1、独立保存变量的LIFO嵌套、if/else的save/restore调用。
+在真实时钟中断期间进入临界区，等待超过定时间隔，检查ticks不变且STIP挂起；
+退出恢复后验证handler继续运行。
+解释只屏蔽本hart可屏蔽中断的范围，以及与多核锁、AMO和内存序的区别。
+对现有常用原子位操作做冒烟验证，完整PMM运行仍标记需C代码。
+
+[SPECIFICATION]
+不能无条件开中断，内层恢复不能提前开启，外层恢复回到原状态。
+每种结果必须来自实际CSR/执行路径观察，不能只打印预设状态。
+```
 
 ## 于蕾：Lab2 物理内存管理依赖提示词（待填写）
 

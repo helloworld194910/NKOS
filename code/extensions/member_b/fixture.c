@@ -57,7 +57,7 @@ void __panic(const char *file, int line, const char *fmt, ...) {
 #endif
     finish();
 }
-/* C's production handler remains absent. Only the stvec routing experiment
+/* This isolated fixture does not exercise C's production handler. Only the stvec routing experiment
  * accepts a deliberately encoded four-byte breakpoint here. */
 void exception_handler(struct trapframe *tf) {
 #if TEST_CASE == 6
@@ -69,6 +69,12 @@ void exception_handler(struct trapframe *tf) {
     (void)tf;
     require(0, "unexpected exception (C handler is not under test)");
 #endif
+}
+/* Isolated dispatcher: production trap/exception symbols are renamed only in
+ * the test compilation. Full make grade exercises the unmodified dispatcher. */
+void trap(struct trapframe *tf) {
+    if ((intptr_t)tf->cause < 0) interrupt_handler(tf);
+    else exception_handler(tf);
 }
 static void await_ticks(size_t target) {
     uintptr_t deadline = now() + 50000000;

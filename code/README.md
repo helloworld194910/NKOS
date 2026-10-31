@@ -1,25 +1,17 @@
-# Lab3 工程说明
+# Lab3 工程
 
-本目录是工程根目录，包含 `Makefile`、内核、公共库、原评分工具与独立扩展测试。小组报告和截图在上一级的 `report/`。
-
-| 路径 | 作用与当前归属 |
-| --- | --- |
-| `kern/trap/trapentry.S` | 杨茜茹完成 Trap 入口传帧与上下文恢复；保留原 SAVE_ALL |
-| `kern/trap/trap.c` | 统一分派框架；中断由程子涵负责，异常由于蕾负责 |
-| `kern/mm/pmm.c`、`best_fit_pmm.c` | Lab2 依赖补齐，由于蕾负责 |
-| `extensions/member_a_switch/` | 已取消 Challenge 1 的历史探索源码，不参与正式内核构建，不要求接入 |
-| `tests/member_a/` | 真实 Trap 汇编的三个独立上下文验证场景 |
-| `tests/member_a_switch/` | 已取消任务的历史自测夹具，不作为课程测试要求 |
-| `tools/` | 原构建、链接、调试与评分工具；不能用修改评分脚本代替修复实现 |
-
-所有文件的具体用途见 [文件用途索引](../report/file_guide.md)。
-
-从仓库根目录运行独立测试：
+本目录为工程根目录，包含 Makefile、kern/、libs/、tools/ 和独立机制验证代码。报告与截图位于 ../report/。
 
 ```bash
-python3 code/tests/member_a/run_context.py
+make
+make grade
+make
+make qemu
+python3 extensions/member_b/run.py
 ```
 
-或进入本目录后执行 `python3 tests/...`。本目录下的 `obj/`、`bin/` 和新生成的 `logs/` 不提交；已取得的测试记录归档在 [report/logs/](../report/logs/)。
+需要 RISC-V GCC/objcopy/objdump、QEMU、make 和 Python 3。完整构建沿用课程 Makefile，独立验证自动探测新旧工具链的 ISA 写法。
 
-上下文独立测试已有 3/3 通过记录；完整内核评分及持续时钟路径仍需正式模块完成后验证。教师已取消旧版用户态切换 Challenge 1，相关历史源码不参与正式构建，不再要求于蕾完成用户态上层。
+trapentry.S 由杨茜茹负责；trap.c 的 interrupt_handler、时钟与 sync.h 宏修复由程子涵负责；PMM 与 exception_handler 由于蕾负责。B 独立测试只为验证中断、stvec 和临界区，不替代原完整评分。临时编译时重命名正式 trap/exception 符号，夹具分派到真实 interrupt_handler，避免与集成后的正式异常定义冲突。
+
+原评分 100/100，正常内核 PMM 自检通过，默认十次统计后自动关机。obj/、bin/、build/、logs/ 均为本地生成产物，不提交。B 独立产物使用 build/member-b/，避免被原评分 make clean 清理。用户态切换 Challenge 已取消。

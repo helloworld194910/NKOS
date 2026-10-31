@@ -15,10 +15,12 @@ import sys
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
+REPO = ROOT.parent
+EXTENSION = Path(__file__).resolve().parent
 SOURCES = ["kern/init/entry.S", "kern/trap/trapentry.S", "kern/trap/trap.c",
            "kern/driver/clock.c", "kern/driver/intr.c", "libs/sbi.c",
-           "libs/printfmt.c", "libs/string.c", "extensions/member_b/fixture.c",
-           "extensions/member_b/vector.S"]
+           "libs/printfmt.c", "libs/string.c", str(EXTENSION / "fixture.c"),
+           str(EXTENSION / "vector.S")]
 CASES = {
     "handler": (1, [], ["PASS: classifications", "PASS: timer boundaries"], 1),
     "timer-default": (2, [], ["PASS: real sustained timer", "Shutdown after 10 reports (ticks=1000)"], 10),
@@ -56,7 +58,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--cases", nargs="+", choices=list(CASES), default=list(CASES))
     args = ap.parse_args()
-    build = ROOT / "obj/member-b"
+    # Keep isolated artifacts outside obj/, which make clean removes.
+    build = ROOT / "build/member-b"
     logs = ROOT / "logs/member-b"
     build.mkdir(parents=True, exist_ok=True)
     logs.mkdir(parents=True, exist_ok=True)
@@ -76,13 +79,13 @@ def main():
              "-Ikern/debug", "-Ikern/sync"]
     hashes = {p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in
               SOURCES + ["kern/sync/sync.h", "libs/atomic.h", "tools/kernel.ld",
-                         "extensions/member_b/run.py", "libs/riscv.h", "libs/defs.h",
+                         str(Path(__file__).resolve()), "libs/riscv.h", "libs/defs.h",
                          "kern/trap/trap.h", "libs/sbi.h", "libs/stdio.h",
                          "libs/stdarg.h", "kern/mm/mmu.h", "kern/mm/memlayout.h",
                          "kern/driver/clock.h", "kern/driver/intr.h"]}
     report = {"scope": "B production handler + A assembly, isolated boot/console/exception fixture; NOT full make grade/PMM/C exception tests",
               "started_utc": datetime.now(timezone.utc).isoformat(),
-              "base_commit": "17205d43fa49958bf965b046eb87d96c57bd36f9",
+              "base_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
               "gcc": subprocess.check_output([cc, "--version"], text=True).splitlines()[0],
               "march": march,
               "qemu": subprocess.check_output([qemu, "--version"], text=True).splitlines()[0],
@@ -111,7 +114,9 @@ def main():
             objects = []
             for i, source in enumerate(SOURCES):
                 obj = directory / f"part{i}.o"
-                run_build([cc, *flags, f"-DTEST_CASE={number}", *defs,
+                test_dispatch = ["-Dtrap=member_b_unused_production_trap",
+                                 "-Dexception_handler=member_b_unused_production_exception"] if source == "kern/trap/trap.c" else []
+                run_build([cc, *flags, f"-DTEST_CASE={number}", *defs, *test_dispatch,
                            "-c", source, "-o", str(obj)], log)
                 objects.append(str(obj))
             kernel = directory / "kernel"
