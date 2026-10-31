@@ -20,7 +20,11 @@ def die(message):
     print("[lab3 inject] ERROR: " + message)
     raise SystemExit(1)
 
+
 if len(sys.argv) != 2:
+    die("Usage: inject.py <temporary grading copy>")
+
+root = os.path.abspath(sys.argv[1])
 tools = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -103,6 +107,7 @@ def find_function(text, name):
     die("Function is missing its matching closing brace: " + name)
 
 
+
 def insert_include(path, header, anchor):
     text = read_text(path)
     pattern = re.compile(
@@ -118,10 +123,10 @@ def insert_include(path, header, anchor):
     write_text(path, text[:match.start()] + replacement + text[match.end():])
 
 
-<<<<<<< HEAD
 def insert_after_statement(path, function_name, statement_pattern, code, occurrence=-1):
     """Insert code after a specific statement within a function body.
     
+    Args:
         path: File path
         function_name: Name of the function containing the statement
         statement_pattern: The statement to search for (e.g., "idt_init();")
@@ -181,11 +186,10 @@ def insert_after_statement(path, function_name, statement_pattern, code, occurre
 
 makefile = os.path.join(root, "Makefile")
 init_c = os.path.join(root, "kern", "init", "init.c")
-=======
-def indent_code(code):
-    return "\n" + "\n".join("    " + line for line in code.splitlines()) + "\n"
+testdir = os.path.join(root, "kern", "test")
 
-<<<<<<< HEAD
+# Pre-condition: verify the skeleton is clean
+make_text = read_text(makefile)
 init_text = read_text(init_c)
 for marker in ("test_lab3.h", "test_lab3_exception_context", "test_lab3_wait_for_timer"):
     if marker in make_text or marker in init_text:
@@ -200,21 +204,6 @@ for filename in ("test_lab3.c", "test_lab3.h", "test_lab3_context.S"):
     if not os.path.exists(src):
         die("tools/{} not found".format(filename))
     shutil.copyfile(src, os.path.join(testdir, filename))
-=======
-if "kern/test" in make_text:
-    die("Makefile already contains kern/test; the skeleton is polluted")
-pmm_text = read_text(pmm)
-if "#include <test_lab2.h>" in pmm_text:
-    die("pmm.c already includes test_lab2.h; the skeleton was injected")
-
-# Copy test sources into kern/test/
-os.makedirs(testdir, exist_ok=True)
-for name in ("test_lab2.c", "test_lab2.h"):
-    src = os.path.join(tools, name)
-    if not os.path.exists(src):
-        die("tools/{} not found".format(name))
-    shutil.copyfile(src, os.path.join(testdir, name))
->>>>>>> origin/lab2
 
 # Add kern/test to Makefile
 for variable in ("KINCLUDE", "KSRCDIR"):
@@ -227,7 +216,6 @@ for variable in ("KINCLUDE", "KSRCDIR"):
     make_text = make_text[:match.end()] + "\n" + variable + "\t+= kern/test" + make_text[match.end():]
 write_text(makefile, make_text)
 
-<<<<<<< HEAD
 # Add #include <test_lab3.h> to init.c
 insert_include(init_c, "test_lab3.h", "dtb.h")
 
@@ -241,12 +229,3 @@ insert_after_statement(init_c, "kern_init", "clock_init();", "test_lab3_timer_is
 insert_after_statement(init_c, "kern_init", "intr_enable();", "test_lab3_wait_for_timer()")
 
 print("lab3 injection complete")
-=======
-# Add #include <test_lab2.h> to pmm.c
-insert_include(pmm, "test_lab2.h", "pmm.h")
-
-# Inject tests at the end of pmm_init
-insert_at_function_end(pmm, "pmm_init", "test_page_init();\ntest_best_fit();")
-
-print("lab2 injection complete")
->>>>>>> origin/lab2

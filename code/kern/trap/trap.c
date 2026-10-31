@@ -158,6 +158,64 @@ void interrupt_handler(struct trapframe *tf) {
     /* Asynchronous interrupts resume at the saved EPC without advancing it. */
 }
 
+//lab3 function2 2411824 于蕾（成员 C：exception_handler）
+
+/* exception_inst_length - 判断 epc 处指令长度（字节）。
+ *
+ * 只读取起始的 16 位，避免在可能仅按 2 字节对齐的地址上做 4 字节读。
+ * 在本实验 16/32 位编码范围内：
+ *   - 低 2 位 != 11                 -> 16 位压缩指令，返回 2；
+ *   - 低 2 位 == 11 且低 5 位 != 11111 -> 32 位指令，返回 4；
+ *   - 低 2 位 == 11 且低 5 位 == 11111 -> >= 48 位指令，本实验不支持，返回 0。
+ * 返回 0 表示无法确认长度，调用方不得推进 epc。 */
+static int exception_inst_length(uintptr_t epc) {
+    uint16_t low16 = *(const uint16_t *)epc;
+
+    if ((low16 & 0x3) != 0x3) {
+        return 2; /* 16 位压缩指令 */
+    }
+    if ((low16 & 0x1f) != 0x1f) {
+        return 4; /* 32 位指令 */
+    }
+    return 0; /* >= 48 位指令：本实验不支持 */
+}
+
+/* exception_handler - 处理同步异常。非法指令与断点按实际指令长度推进
+ * tf->epc 后正常返回；其余异常只输出完整 Trap frame，不修改现场。 */
+void exception_handler(struct trapframe *tf) {
+    uintptr_t epc = tf->epc;
+    int len;
+
+    switch (tf->cause) {
+    case CAUSE_ILLEGAL_INSTRUCTION:
+        cprintf("Illegal instruction at %p\n", (void *)epc);
+        len = exception_inst_length(epc);
+        if (len == 2 || len == 4) {
+            tf->epc = epc + len;
+        } else {
+            /* 长度无法确认（>= 48 位）：不擅自推进，仅诊断兜底。 */
+            print_trapframe(tf);
+        }
+        break;
+
+    case CAUSE_BREAKPOINT:
+        cprintf("Breakpoint at %p\n", (void *)epc);
+        len = exception_inst_length(epc);
+        if (len == 2 || len == 4) {
+            tf->epc = epc + len;
+        } else {
+            /* 长度无法确认（>= 48 位）：不擅自推进，仅诊断兜底。 */
+            print_trapframe(tf);
+        }
+        break;
+
+    default:
+        /* 其他未要求恢复的同步异常：输出完整现场，保持现场不变。 */
+        print_trapframe(tf);
+        break;
+    }
+}
+
 
 static inline void trap_dispatch(struct trapframe *tf) {
     if ((intptr_t)tf->cause < 0) {
