@@ -359,7 +359,7 @@ __trapret:
 
 **负责人：** 2412790-杨茜茹。
 
-这项测试用于验证功能模块一，是杨茜茹补充的验证任务，不是将指导书额外编号成一个新的必做功能模块。
+这项测试用于验证功能模块一，是杨茜茹补充的阶段验证，不是必做功能模块。以下说明及提示词保留实际开发记录；其中的测试文件和命令不属于当前提交。
 
 #### 模块功能描述
 
@@ -617,7 +617,7 @@ RESULT: 3/3 context scenarios passed
 
 #### 实现迭代过程
 
-前期真实迭代包括旧 CSR 名称兼容、恢复宏 if/else 分号问题，以及新旧编译器 ISA 写法探测，均通过明确输入和实际编译定位，未更改原评分条件。本轮修复目录搬迁后源码路径失效，以及 C 正式异常处理合入后与测试夹具同名符号冲突：只在独立测试编译时重命名正式 trap/异常符号，由夹具分派到真实 B handler；完整评分仍使用未改动的正式分派与异常处理。独立构建放在仓库 obj/，避免被 code/ 的 make clean 清除。初次并行验证曾因清理目录导致缺失对象文件，调整隔离目录后重跑六组全部通过。集成探针首次因 sync.h 不在 init.c 默认搜索路径而构建失败，改为相对包含后通过。
+前期真实迭代包括旧 CSR 名称兼容、恢复宏 if/else 分号问题，以及新旧编译器 ISA 写法探测，均通过明确输入和实际编译定位，未更改原评分条件。本轮修复目录搬迁后源码路径失效，以及 C 正式异常处理合入后与测试夹具同名符号冲突：只在独立测试编译时重命名正式 trap/异常符号，由夹具分派到真实 B handler；完整评分仍使用未改动的正式分派与异常处理。测试期间将独立产物与正式构建隔离，避免被 make clean 清除。初次并行验证曾因清理目录导致缺失对象文件，调整隔离目录后重跑六组全部通过。集成探针首次因 sync.h 不在 init.c 默认搜索路径而构建失败，改为相对包含后通过。
 
 ### 功能模块二·任务二：非法指令与断点异常处理
 
@@ -668,7 +668,7 @@ v1.9.1 §4.1.3 的 stvec 低两位为零，直接表示四字节对齐的入口�
 
 MODE 和可接受 BASE 受 WARL 约束；写入后必须读回核对。其他平台不保留 Vectored 请求时应记录受限/跳过，不能把 Direct 路由算作 Vectored 通过。QEMU 4.1.1 本次实际保留两种请求，均完成真实异常、软件中断和持续时钟入口验证。
 
-实验代码在 [独立向量汇编](../code/extensions/member_b/vector.S) 与 `code/extensions/member_b/fixture.c`；不纳入正式 Makefile，不修改基础 idt_init。跳板临时保存 t0/t1、记录实际槽号后恢复原栈和寄存器，再进入 A 的真实入口；完成后恢复 stvec。
+该补充实验在独立测试镜像中完成，未修改基础 idt_init；验证脚本不纳入最终课程提交。跳板临时保存 t0/t1、记录实际槽号后恢复原栈和寄存器，再进入 A 的真实入口；完成后恢复 stvec。
 
 官方依据（访问日期 2026-10-28）：
 
@@ -710,7 +710,7 @@ PMM 的 `alloc_pages()`、`free_pages()`、`nr_free_pages()` 都在调用管理�
 
 ## 五、测试与验证
 
-以下 5.1—5.2 为杨茜茹已经完成的编译和上下文独立验证。运行本章命令前进入仓库的 `code/` 目录；截图和对应日志均来自实际运行。
+以下 5.1—5.2 为杨茜茹已完成的阶段验证。独立测试与原始日志未放入最终提交，保留真实过程、结果和截图；本章当前可复现命令以正式 make、make grade、make qemu 为准。
 
 ### 5.1 Trap 汇编单文件编译
 
@@ -720,15 +720,11 @@ PMM 的 `alloc_pages()`、`free_pages()`、`nr_free_pages()` 都在调用管理�
 make obj/kern/trap/trapentry.o
 ```
 
-实际输出含 `+ cc kern/trap/trapentry.S`，退出码为 0；对象头检查为 RV64、小端 RISC-V ELF。证据保存在 `report/logs/member-a-trapentry-build.log`。这项检查只说明该编译单元成立。
+实际输出含 `+ cc kern/trap/trapentry.S`，退出码为 0；对象头检查为 RV64、小端 RISC-V ELF。原始日志保存在此前开发记录中，本次提交未附。这项检查只说明该编译单元成立。
 
 ### 5.2 Trap 上下文独立 QEMU 验证
 
-复现命令：
-
-```bash
-python3 tests/member_a/run_context.py
-```
+本节为提交 `0cf26be` 对应的阶段验证记录；独立脚本不随最终代码提交。
 
 | 检查项目 | 实际结果 |
 | --- | --- |
@@ -740,16 +736,7 @@ python3 tests/member_a/run_context.py
 | 返回后 SPIE、SPP | SPIE 符合本次 QEMU 4.1.1 的零值预期；SPP 清零，检查通过 |
 | 总结果 | 3/3 通过；QEMU 正常退出，退出码为 0 |
 
-| 证据文件 | 内容 |
-| --- | --- |
-| `report/logs/member-a-context-build.log` | 实际编译与链接命令、输出 |
-| `report/logs/member-a-context-environment.log` | QEMU 版本及 SPIE 环境预期 |
-| `report/logs/member-a-context-qemu.log` | 固件启动和三个 PASS 的输出 |
-| `report/logs/member-a-context-result.json` | 源码哈希、环境依据、退出码与判定 |
-| `report/logs/member-a-context-before-spie-fix-*` | 首轮失败的构建、运行和结果记录 |
-| `report/logs/member-a-before-spie-fix-source/` | 修订前的提示词、测试与说明快照 |
-
-基础上下文验证对应提交 `0cf26be`；本节截图与日志保留该测试的实际运行记录。
+基础上下文验证对应提交 `0cf26be`；以下截图保留该测试的实际结果。
 
 ![Trap 基础上下文独立验证](images/member-a-context.png)
 
@@ -780,10 +767,9 @@ make
 make grade
 make
 make qemu
-python3 extensions/member_b/run.py
 ```
 
-评分会清理正式构建，之后须重新 make 再运行正常内核。独立六组测试直接链接真实 B handler、时钟与 A 汇编，局部分派和受控断点由夹具提供；完整评分使用正式异常处理。额外 PMM/异常协验仅在本地临时副本注入调用，未将注入代码或中间产物放入课程提交。
+评分会清理正式构建，之后须重新 make 再运行正常内核。此前独立六组测试链接真实 B handler、时钟与 A 汇编，局部分派和受控断点由夹具提供；脚本已从最终提交移除，保留实际结果和截图。完整评分使用正式异常处理。额外 PMM/异常协验仅在本地临时副本注入调用，未将注入代码或中间产物放入课程提交。
 
 #### 完整评分截图
 
