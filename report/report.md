@@ -178,7 +178,7 @@ __trapret:
 void trap(struct trapframe *tf);
 ```
 
-实际修改只位于 `kern/trap/trapentry.S` 的两处 `lab3 function1` 标记内，署名为 `2412790`。SAVE_ALL、trap.h、trap.c、PMM 和原有测试均未修改。
+本人最初实现时，只修改了 `kern/trap/trapentry.S` 的两处 `lab3 function1` 标记，署名为 `2412790`，未修改 SAVE_ALL、trap.h、trap.c、PMM 和原有测试。后续集成版将 SAVE_ALL 中的 CSR 名称由 `sbadaddr` 改为 `stval`，帧布局保持不变，相关复核见 5.3。
 
 **功能说明：**
 
@@ -714,10 +714,16 @@ PMM 的 `alloc_pages()`、`free_pages()`、`nr_free_pages()` 都在调用管理�
 
 ### 5.1 Trap 汇编单文件编译
 
-在工程根目录执行：
+本节记录目录重排前的阶段编译，当时在含 Makefile 的工程目录执行：
 
 ```bash
 make obj/kern/trap/trapentry.o
+```
+
+当前仓库采用 `code/`、`report/` 布局，从仓库根目录检查该编译单元可执行：
+
+```bash
+make -C code obj/kern/trap/trapentry.o
 ```
 
 实际输出含 `+ cc kern/trap/trapentry.S`，退出码为 0；对象头检查为 RV64、小端 RISC-V ELF。原始日志保存在此前开发记录中，本次提交未附。这项检查只说明该编译单元成立。
