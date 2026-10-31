@@ -31,3 +31,4 @@ __pycache__/
 /.qemu*.out
 /.gdb.in
 *.html
+C2_prompt.md
