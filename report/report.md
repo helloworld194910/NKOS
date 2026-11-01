@@ -1061,16 +1061,13 @@ make -C /home/yxqjrh/lab3/lab3_new/code qemu
 
 ### 5.4 最终集成、复现与提交
 
-**负责人：** 2411824-于蕾。
-
 | 项目 | 内容 |
 | --- | --- |
 | 集成版本 | 前置依赖来自 `origin/lab2`（合并提交，带入 Best-Fit 与 `pmm.c` 空闲页管理）。最终集成与报告整理统一在分支 `lab3`。 |
 | 接口与冲突处理 | 合并后 `entry.S`、`memlayout.h`、`inject.py` 出现冲突标记。`entry.S` 保留 Lab3 的 Sv39 启动页表注释、去掉 Lab2 重复的段说明；`memlayout.h` 采用 Lab2 的 `PHYSICAL_MEMORY_END`、`KERNEL_BEGIN_PADDR`、`KERNEL_BEGIN_VADDR`、去掉重复的 `PHYSICAL_MEMORY_OFFSET`；`inject.py` 保留 Lab3 注入路径并补全参数检查、去掉 Lab2 注入逻辑。跨模块未新增接口：A 的 `trapentry.S`、B 的 `interrupt_handler()`、C 的 `exception_handler()` 经既有 `trapframe` 与 `trap_dispatch()` 衔接。 |
 | 干净目录复现 | WSL 中从仓库根目录进入 `code/`，`make clean && make && make grade` 得 Context 35/35、Illegal 25/25、Timer 40/40、总分 100/100；再 `make && make qemu`，内核经 `best_fit_pmm_manager` 自检、十次 `100 ticks` 后在 `ticks=1000` 自动关机。证据与截图见 5.3。 |
 | 提交材料检查 | `code/`、`report/`齐全；`lab3 function1/function2` 标记及三人学号署名在位，报告图片使用相对链接； |
-| 最终提交 | 仓库 https://github.com/helloworld194910/NKOS.git，分支 `lab3`。最终提交号与上传时间在本次报告整合提交后记录，以实际提交为准。 |
-| 完成日期 | 2026-11-3 |
+| 最终提交 | 仓库 https://github.com/helloworld194910/NKOS.git，分支 `lab3`。 |
 
 
 ### 5.5 当前验证范围
