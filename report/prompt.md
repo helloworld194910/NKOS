@@ -5,7 +5,7 @@
 | --- | --- | --- |
 | 2412790-杨茜茹 | Codex 桌面应用；GPT-6.1 Sol | Trap 基础实现、上下文独立验证两份完整四段提示词，以及完整内核复验与报告整理要求 |
 | 2413921-程子涵 | 已整理在本文 B 部分 | 中断时钟、stvec、临界区规格和本轮真实适配过程已归档 |
-| 2411824-于蕾 | deepseek-v4-pro | Lab2 依赖补齐与异常处理的实际提示词 |
+| 2411824-于蕾 | deepseek-v4-pro | 异常处理的实际提示词 |
 
 
 | 任务 | 提示词 |
@@ -21,6 +21,7 @@
 ## 功能模块一：Trap 上下文恢复与 Trap 入口
 
 **负责人：** 2412790-杨茜茹。
+
 
 [PROMPT]
 
@@ -45,7 +46,7 @@ Trap 发生时，硬件记录异常位置和部分控制状态，但不会自动
 
 [RELY]
 
-## 最小工程依赖
+### 最小工程依赖
 
 - `kern/trap/trapentry.S`：已有 `SAVE_ALL`、`RESTORE_ALL`、`__alltraps`、`__trapret`。`__trapret` 已调用 `RESTORE_ALL` 并执行 `sret`。
 - `kern/trap/trap.h`：`struct pushregs` 按 x0 至 x31 的顺序记录 32 个通用寄存器；`struct trapframe` 随后包含 `status`、`epc`、`badvaddr`、`cause`。
@@ -58,7 +59,7 @@ void trap(struct trapframe *tf);
 
 - RISC-V 调用约定：第一个参数在 `a0`；调用可能破坏 `ra`、参数寄存器和临时寄存器。正常 C 调用返回时应恢复自己的栈帧，调用者仍可定位原 Trap 帧。
 
-## 当前帧布局
+### 当前帧布局
 
 | 内容 | 相对当前帧基址的字节偏移 |
 | --- | --- |
@@ -102,7 +103,7 @@ __trapret:
 
 [SPECIFICATION]
 
-## RESTORE_ALL 宏
+### RESTORE_ALL 宏
 
 **Pre-Condition：** sp 指向完整、有效且经 C 处理后的 trapframe；本轮采用框架支持的内核栈入口。
 
@@ -118,7 +119,7 @@ __trapret:
 
 **Requirements：** 恢复 CSR 时借用的 GPR 也须正确恢复；不能因提前恢复 sp 丢失帧地址。不要通过增加整段新保存逻辑重复或改变 SAVE_ALL 的既定语义。
 
-## __alltraps 调用部分
+### __alltraps 调用部分
 
 **Pre-Condition：** 硬件已进入入口，原有 SAVE_ALL 已完整构造帧；栈可用于正常 C 调用。
 
@@ -130,7 +131,7 @@ __trapret:
 
 **Requirements：** a0 必须是当前帧地址，不是原始 sp、原始 a0 或 sepc。调用必须能够返回，不能使用 tail 取代正常调用，也不能只靠 caller-saved 寄存器跨调用保留唯一帧地址。
 
-## 验证与边界
+### 验证与边界
 
 **Pre-Condition：** RISC-V 工具链可用，原始测试未被修改。
 
@@ -182,7 +183,7 @@ __trapret:
 
 [RELY]
 
-## 真实接口与数据
+### 真实接口与数据
 
 ```c
 void trap(struct trapframe *tf);
@@ -223,7 +224,7 @@ void member_a_probe_edit(void);
 
 [SPECIFICATION]
 
-## 场景一：四字节断点与完整上下文
+### 场景一：四字节断点与完整上下文
 
 **Pre-Condition：** 独立镜像已初始化栈、stvec、sscratch，SIE 关闭，sie=0。探针具有可恢复的 C 调用者状态。
 
@@ -233,7 +234,7 @@ void member_a_probe_edit(void);
 
 **Requirements：** 不用对帧内值的检查替代返回后快照，不只检查 s0～s11。固定指令长度通过明确编码保证。
 
-## 场景二：两字节断点
+### 场景二：两字节断点
 
 **Pre-Condition：** 支持压缩指令的实际实验环境，SIE 关闭；使用新的场景状态。
 
@@ -243,7 +244,7 @@ void member_a_probe_edit(void);
 
 **Requirements：** 不能用汇编器可能自动选择长度的裸 ebreak 代替长度明确的测试。
 
-## 场景三：handler 修改有效帧
+### 场景三：handler 修改有效帧
 
 **Pre-Condition：** 输入 GPR 为已知模式值，handler 已确认入口保存正确。
 
@@ -253,7 +254,7 @@ void member_a_probe_edit(void);
 
 **Requirements：** 场景一、二的 SIE 预期为零，场景三为一；这一差异必须实测。SPIE 后值按环境规格检查，不在生产汇编中强行置位掩盖模拟器行为。
 
-## 运行驱动与失败处理
+### 运行驱动与失败处理
 
 **Pre-Condition：** 真实源码和工具可访问，正式工程未被本测试修改。
 
@@ -270,48 +271,6 @@ void member_a_probe_edit(void);
 **Requirements：** 首次失败和修订后输出分开保存；禁止修改原始评分测试或队友的正式代码。记录哪些是测试问题、实现问题或尚未定位的问题。
 
 <a id="final-validation"></a>
-
-## 杨茜茹：完整内核复验与报告整理
-
-本阶段没有修改正式实现，主要检查已集成的代码，并补充本人报告与截图。以下为本阶段交互要求的整理，不作为原始逐字提示词。本节路径相对于仓库根目录，构建和运行命令须在 `code/` 中执行，或从仓库根目录使用 `make -C code`。
-
-[PROMPT]
-
-检查最新集成版本中本人负责的 Trap 入口与上下文恢复实现，指导我在 WSL 中完成完整构建、课程原有评分和正常内核运行。根据实际反馈整理本人报告，添加真实截图，更新已完成事项。
-
-[RELY]
-
-- 正式实现位于 `code/kern/trap/trapentry.S`，帧布局由 `code/kern/trap/trap.h` 定义。
-- 正式中断、异常处理及物理内存管理模块已经集成。
-- 本轮验证基线为 `625b8d8`。
-- 运行结果由本人在 VS Code 的 WSL 终端执行后提供，不能将队友的结果记为本人执行。
-- 本人此前的 3/3 独立上下文测试属于阶段记录，不能替代最新完整内核验证。
-
-[GUARANTEE]
-
-- 保留正式实现、原有测试和评分条件；发现问题先定位原因。
-- 仅更新 `report/report.md` 中本人相关记录，并添加本人真实截图。
-- 保留队友的操作过程、结果及待填写内容。
-- 未实际执行的测试不得标记为通过。
-- 正式评分的覆盖范围与历史独立测试分别说明。
-
-[SPECIFICATION]
-
-**Case 1：完整构建与评分**
-
-清理后构建内核并运行 `make grade`，记录 Context、Illegal、Timer 各项结果及总分；失败时保留错误输出。
-
-**Case 2：正常运行**
-
-重新清理并运行 `make qemu`，观察内存自检、持续时钟中断和自动关机，并确认返回终端。
-
-**Case 3：代码复核**
-
-核对帧布局、传入 `trap()` 的参数、CSR 和通用寄存器恢复顺序，以及最后恢复 `sp` 的要求。汇编采用处理后的 EPC，不统一增加固定指令长度。
-
-**Case 4：报告整理**
-
-将实际命令、验证版本、结果及真实截图写入本人报告，更新过时待办。不得把源码复核、历史测试和本轮动态结果混为一谈。
 
 ---
 
@@ -398,7 +357,7 @@ Vectored同步异常走BASE、异步中断走BASE+4*cause，RV64乘数仍是4。
 每种结果必须来自实际CSR/执行路径观察，不能只打印预设状态。
 ```
 
-## 于蕾：异常处理提示词（待填写）
+## 于蕾：异常处理提示词
 
 
 [PROMPT]:
@@ -518,18 +477,6 @@ Breakpoint at
 
 `code/tools/grade.sh` 检查上述异常输出前缀，并在非法指令测试中检查 `cause    0x00000014` 等输出；该行应来自已有 `print_trapframe()`，不能硬编码假输出。
 
-**6. 当前快照的框架阻塞**
-
-下列文件含有合并冲突标记：
-
-- `code/kern/init/entry.S`
-- `code/kern/mm/memlayout.h`
-- `code/tools/inject.py`
-
-此外，当前 `inject.py` 的参数检查处存在不完整语句块。上述问题会阻碍构建或测试注入，不能通过只补充 C2 函数解决。
-
-这些文件在本任务中只读。执行时先核对问题是否仍存在；存在则如实报告，不擅自修复，不把它们造成的失败记为 C2 已通过。
-
 [GUARANTEE]
 
 **必须实现的正式接口仅有：**
@@ -544,7 +491,7 @@ void exception_handler(struct trapframe *tf);
 
 [SPECIFICATION]
 
-## exception_handler 函数
+### exception_handler 函数
 
 **Pre-Condition**：
 
@@ -606,7 +553,7 @@ void exception_handler(struct trapframe *tf);
 7. 不在本函数中启用中断、调用关机接口、分配内存或编写另一套寄存器恢复机制。
 8. 正确推进 `epc` 的保证针对本任务可恢复的非法指令和断点；不能为了让未知异常“看起来能返回”而盲目增加偏移。
 
-## 验证与验收
+### 验证与验收
 
 **Pre-Condition**：
 
@@ -620,9 +567,5 @@ void exception_handler(struct trapframe *tf);
 - 使用现有测试验证真实 Trap 返回和异常后的继续执行。两种长度断点应以反汇编、长度明确的指令编码或实际调试证据分别确认，不能仅凭一次 `Breakpoint at` 输出宣称全部覆盖。
 - 从仓库根目录进入 `code/`，在依赖问题解决后运行 `make`、`make grade`。原评分会执行 Context、Illegal、Timer，属于多成员集成检查。
 - 如果当前条件无法运行，不新增正式测试文件、不篡改原测试或评分条件；报告未执行项和具体原因，把完整覆盖留待 C4 验证。
-
-**验收结论**：
-
-C2 应交付一个实际写入真实文件、接口一致且不改动队友模块的 `exception_handler()`。完整评分通过必须有真实运行证据；框架冲突未解决或工具缺失时，只能报告已完成的实现和静态检查，不能宣称内核已成功运行。
 
 
