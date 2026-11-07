@@ -281,8 +281,7 @@ void member_a_probe_edit(void);
 
 ```text
 [PROMPT]
-你是负责 RISC-V ucore Lab3 中断模块的成员 B，程子涵 2413921。
-
+整个功能模块的具体功能为：这个模块负责对 Trap 入口传递过来的中断和异常进行具体分类和处理。interrupt_handler() 负责处理中断，其中时钟中断需要完成下一次时钟事件设置、时钟计数、统计信息输出以及达到规定次数后的系统关机；其他类型的中断只需要完成基本的类型区分和相应提示输出，无法识别的中断则通过已有的 print_trapframe(tf) 输出完整 Trap frame 以辅助调试。
 [RELY]
 初始基线为 NKOS 的 lab3_yang（17205d43fa49958bf965b046eb87d96c57bd36f9）；本轮集成基线为 e7ab36b。
 读取 trap.c、trap.h、clock.c/h、intr.c/h、riscv.h、sbi.h、原评分脚本。
