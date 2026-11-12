@@ -58,3 +58,8 @@ vendor/
 *.bak
 *.cache
 .DS_Store
+
+# Lab4 generated files
+/code/obj/
+/code/bin/
+/code/build/
