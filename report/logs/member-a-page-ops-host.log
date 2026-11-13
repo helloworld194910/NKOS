@@ -1,0 +1,14 @@
+SOURCE_SHA256: 61e9262a05f329c2556144fd28966baf4aeaee1a7926af11a3f92aa03e18f089
+COMMAND: gcc -std=c99 -Wall -Wextra -Werror -O0 /home/yxqjrh/NKOS-lab4/code/obj/member-a-page-host/actual_page_ops_test.c -o /home/yxqjrh/NKOS-lab4/code/obj/member-a-page-host/page-ops
+EXIT_CODE: 0
+COMMAND: /home/yxqjrh/NKOS-lab4/code/obj/member-a-page-host/page-ops
+PASS 1: new mapping and non-aligned address
+PASS 2: same-page permission update
+PASS 3: replace shared page without premature free
+PASS 4: last reference and repeated removal
+PASS 5: replacement releases old last reference
+PASS 6: absent table and first allocation failure
+PASS 7: partial table allocation rollback
+PASS 8: existing intermediate table preserved on failure
+RESULT: 8/8 host contract scenarios passed
+EXIT_CODE: 0
