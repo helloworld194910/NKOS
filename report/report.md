@@ -174,7 +174,15 @@ QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，�
 
 构建日志中 kmalloc.c:92 存在整数传给指针参数的警告；构建及运行成功，未改动该框架文件。链接器 removing unused section 是移除未使用段，也说明不能把被移除模块当作本次运行覆盖。
 
-可复现脚本：`code/tests/member_a/run_page_ops_host.py`、`run_page_ops_qemu.py`，均传入 `--root` 指定仓库根目录。证据位于 `report/logs/member-a-page-ops-host.log` 和 `member-a-page-qemu*`；真实截图待补充。最终整机截图及评分由调度与集成负责人补充。
+可复现脚本：`code/tests/member_a/run_page_ops_host.py`、`run_page_ops_qemu.py`，均传入 `--root` 指定仓库根目录。证据位于 `report/logs/member-a-page-ops-host.log` 和 `member-a-page-qemu*`；最终整机截图及评分由调度与集成负责人补充。
+
+![页操作宿主测试结果](images/member-a-page-host.png)
+
+图 5-1　页操作宿主测试的 8 个场景全部通过。页表查询、分配和 TLB 接口由测试环境模拟。
+
+![页操作独立 QEMU 验证结果](images/member-a-page-qemu.png)
+
+图 5-2　独立 QEMU 中，原物理内存和页表自检通过。实际访存、共享页、映射替换、重复删除及资源回收检查均通过。
 
 ## 六、实验总结与收获
 
