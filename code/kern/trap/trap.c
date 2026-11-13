@@ -84,6 +84,80 @@ void print_regs(struct pushregs *gpr)
 extern struct mm_struct *check_mm_struct;
 
 //lab3 请补充你在lab3中的代码
+// Lab3 timer policy adapted for Lab4 by 2412790; original handler: 2413921.
+void interrupt_handler(struct trapframe *tf) {
+    const uintptr_t bit = (uintptr_t)1 << (sizeof(tf->cause) * 8 - 1);
+    switch (tf->cause & ~bit) {
+    case IRQ_S_SOFT:
+        clear_csr(sip, MIP_SSIP);
+        break;
+    case IRQ_S_TIMER:
+        clock_set_next_event();
+        ++ticks;
+        if (ticks % TICK_NUM == 0) {
+            print_ticks();
+        }
+        break;
+    default:
+        print_trapframe(tf);
+        break;
+    }
+    // An asynchronous interrupt must not advance the saved PC.
+}
+
+// Original exception handling: 2411824; migration: 2412790.
+static int exception_inst_length(uintptr_t epc) {
+    uint16_t low16 = *(const uint16_t *)epc;
+
+    if ((low16 & 0x3) != 0x3) {
+        return 2; /* 16 位压缩指令 */
+    }
+    if ((low16 & 0x1f) != 0x1f) {
+        return 4; /* 32 位指令 */
+    }
+    return 0; /* >= 48 位指令：本实验不支持 */
+}
+
+void exception_handler(struct trapframe *tf) {
+    /* 保留触发位置供诊断和长度判断使用；tf->epc 表示最终返回位置。 */
+    uintptr_t epc = tf->epc;
+    int len;
+
+    switch (tf->cause) {
+    case CAUSE_ILLEGAL_INSTRUCTION:
+        /* 按规定先打印原故障地址，再根据编码跳过 2/4 字节。
+         * 不直接依赖 badvaddr/stval 解码，因为其内容未必提供完整指令。 */
+        cprintf("Illegal instruction at %p\n", (void *)epc);
+        len = exception_inst_length(epc);
+        if (len == 2 || len == 4) {
+            tf->epc = epc + len;
+        } else {
+            /* 长度无法确认（>= 48 位）：不擅自推进，仅诊断兜底。 */
+            print_trapframe(tf);
+        }
+        break;
+
+    case CAUSE_BREAKPOINT:
+        /* ebreak 与 c.ebreak 的原因码相同，但长度可分别为 4/2 字节；
+         * 必须读取实际编码，确保返回落到紧随断点后的指令边界。 */
+        cprintf("Breakpoint at %p\n", (void *)epc);
+        len = exception_inst_length(epc);
+        if (len == 2 || len == 4) {
+            tf->epc = epc + len;
+        } else {
+            /* 长度无法确认（>= 48 位）：不擅自推进，仅诊断兜底。 */
+            print_trapframe(tf);
+        }
+        break;
+
+    default:
+        /* 其他未要求恢复的同步异常：只打印，不读取 epc 处指令，
+         * 即使测试帧 epc=0 也不会在此取指。现场不变意味着这里只做
+         * 诊断兜底，真实故障返回后仍可能重复发生，尚无通用恢复策略。 */
+        print_trapframe(tf);
+        break;
+    }
+}
 
 
 
