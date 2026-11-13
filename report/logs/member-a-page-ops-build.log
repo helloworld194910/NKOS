@@ -1,0 +1,6 @@
+COMMAND: make -B -C /home/yxqjrh/NKOS-lab4/code obj/kern/mm/pmm.o
+make: Entering directory '/home/yxqjrh/NKOS-lab4/code'
++ cc kern/mm/pmm.c
+make: Leaving directory '/home/yxqjrh/NKOS-lab4/code'
+
+EXIT_CODE: 0

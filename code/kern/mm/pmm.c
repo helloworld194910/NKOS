@@ -323,7 +323,57 @@ struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store)
     return NULL;
 }
 
-//LAB4 function1 YOUR CODE
+//LAB4 function1 2412790 杨茜茹
+
+// pgdir uses the framework's three-level, 4 KiB mapping layout.
+int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm)
+{
+    pde_t *root_entry = &pgdir[PDX1(la)];
+    pde_t old_root = *root_entry;
+    pte_t *ptep = get_pte(pgdir, la, 1);
+    if (ptep == NULL) {
+        // get_pte may allocate the first table before the second allocation
+        // fails. Only undo a table created by this call, never an old table.
+        if (!(old_root & PTE_V) && (*root_entry & PTE_V)) {
+            struct Page *table = pde2page(*root_entry);
+            *root_entry = old_root;
+            tlb_invalidate(pgdir, la);
+            set_page_ref(table, 0);
+            free_page(table);
+        }
+        return -E_NO_MEM;
+    }
+
+    // Acquire the new reference first: replacing a page with itself must
+    // not momentarily reduce its reference count to zero and free it.
+    page_ref_inc(page);
+    if (*ptep & PTE_V) {
+        struct Page *old_page = pte2page(*ptep);
+        if (old_page == page) {
+            page_ref_dec(page);
+        } else {
+            page_remove(pgdir, la);
+        }
+    }
+    *ptep = pte_create(page2ppn(page), perm | PTE_V);
+    tlb_invalidate(pgdir, la);
+    return 0;
+}
+
+void page_remove(pde_t *pgdir, uintptr_t la)
+{
+    pte_t *ptep = get_pte(pgdir, la, 0);
+    if (ptep == NULL || !(*ptep & PTE_V)) {
+        return;
+    }
+    struct Page *page = pte2page(*ptep);
+    *ptep = 0;
+    tlb_invalidate(pgdir, la);
+    if (page_ref_dec(page) == 0) {
+        free_page(page);
+    }
+    // Empty intermediate page tables remain owned by the address space.
+}
 
 
 

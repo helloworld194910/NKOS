@@ -123,3 +123,69 @@ void exception_handler(struct trapframe *tf);
 ### 验证阶段
 
 先强制重编四个对象，记录命令和退出码，并核对原测试/队友文件未改。页操作及线程模块尚未完成，完整构建、QEMU 和原评分留到后续进行；不得改测试使编译通过。
+
+
+## 任务二：页映射插入与删除
+
+负责人：2412790 杨茜茹。
+
+[PROMPT]
+
+在真实文件 `code/kern/mm/pmm.c` 的 LAB4 function1 标记处实现 page_insert 与 page_remove，将 YOUR CODE 换为2412790。插入建立或替换一个4KiB映射，删除撤销对应映射。维护 PTE、数据页引用计数及 TLB 一致性。修改真实文件，不只输出代码。
+
+允许修改此标记内的实现，禁止修改 get_pte、tlb_invalidate、原有检查、公共头文件、进程和调度模块。输出具体差异与实际编译结果；完整运行和失败注入测试没有执行时不能宣称通过。
+
+[RELY]
+
+框架 pmm.h 提供以下签名：
+```c
+int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm);
+void page_remove(pde_t *pgdir, uintptr_t la);
+pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create);
+void tlb_invalidate(pde_t *pgdir, uintptr_t la);
+```
+使用现有 page_ref_inc/page_ref_dec、pte2page/pde2page、page2ppn、pte_create、free_page。当前 get_pte 按 PDX1、PDX0、PTX 访问三级页表；第二次分配失败不会回收第一次分配的页表。当前 tlb_invalidate 对地址执行 sfence.vma，不检查 pgdir 是否活跃。不得把其注释当作额外保证。
+
+[GUARANTEE]
+
+保留函数签名、原测试和页表布局；支持 la 含页内偏移。这里只处理框架管理的4KiB页表路径，不处理经过大页叶子的拆分。调用者提供有效页目录和物理页，保证没有并发修改同一路径。权限按调用者传入值构造，并加 PTE_V，不擅自增加 PTE_R 或改变测试使用的权限组合。
+
+[SPECIFICATION]
+
+### page_insert
+
+**Pre-Condition：** pgdir、page 有效；页面尚未释放；页表路径符合上述约定。
+
+**Post-Condition：** 成功返回0，目标页表项指向page，权限更新，对应引用增加一次；失败返回-E_NO_MEM，不增加数据页引用，不留下本次创建的半成品页表。
+
+**Case 1：** 无旧映射：定位/创建末级PTE，引用加一，写入映射并刷新对应TLB。
+
+**Case 2：** 原映射为同一页：更新权限，但净引用计数不变，不调用free_page释放目标页。先加引用，再抵消这次增量。
+
+**Case 3：** 原映射为其他页：取得新页引用，撤销旧映射、递减旧页引用；旧页仍有其他映射时不释放，归零才释放；最后安装新映射并刷新。
+
+**Case 4：** 首个页表分配失败：返回错误，原状态不变。
+
+**Case 5：** 新建第一个中间表后第二次分配失败：恢复调用前根项，刷新并释放本次创建的中间表；已有中间表不能回收。此回滚依据当前get_pte仅有两次分配的具体行为。
+
+**Requirements：** 取得PTE成功后才变更数据页引用；不要复制整套get_pte；不把已有共享页表当作失败清理对象。
+
+### page_remove
+
+**Pre-Condition：** 页目录有效，路径符合4KiB框架约定，有效映射的引用计数正确。
+
+**Post-Condition：** 对应映射消失，引用减一，只有归零才回收数据页；重复删除无额外影响。
+
+**Case 1：** 中间页表不存在：get_pte(create=0)，直接返回，不分配。
+
+**Case 2：** PTE存在但无效：直接返回，不减少引用。
+
+**Case 3：** 有效且存在其他引用：清PTE、刷新、减引用，不释放。
+
+**Case 4：** 最后引用：清PTE并刷新后减到零，释放数据页。
+
+**Requirements：** 不自动回收空中间页表，原检查及地址空间拥有者负责其生命周期。此任务不改调度/关中断策略。
+
+### 待执行验证
+
+对象编译只是第一步。独立测试需覆盖新映射、同页更新权限、不同页替换、多地址共享、未对齐la、缺失/无效/重复删除、两级分配失败回滚和已有中间表的保留；之后运行原页表检查与集成评分。每项记录实际结果，不能以设计用例代替执行证据。
