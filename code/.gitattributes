@@ -1,0 +1,2 @@
+# Shell scripts run under WSL/Linux; preserve the existing LF repository blob.
+*.sh text eol=lf
