@@ -127,7 +127,7 @@ kern_init
 
 ## 四、实验内容与实现
 
-各模块保留了实现时使用的提示词。提示词中的初始代码状态和待验证事项按当时记录保留，完成情况见对应的迭代记录和第五章。
+各模块列出最终整理的提示词，历史记录与后续补充规格按各节说明区分。提示词中的初始代码状态和待验证事项按当时记录保留，完成情况见对应的迭代记录和第五章。
 
 <a name="member-a"></a>
 
@@ -280,7 +280,7 @@ void exception_handler(struct trapframe *tf);
 
 **Pre-Condition：** 释放有效已分配连续区间，n>0，每页非 Reserved 且非空闲块头；不是任意错误指针检测器。
 
-**Post-Condition：** 清引用和标志，通过插入辅助函数回收及合并，计数加 n；查询返回计数且不改状态。
+**Post-Condition：** 清引用和标志，通过插入辅助函数回收及合并，计数加 n。
 
 **Cases：** 不相邻、仅前邻、仅后邻、双向相邻；零长度/不符页面状态断言。保持原测试的临时链表隔离方式，不增加独立索引。
 
@@ -326,7 +326,7 @@ void exception_handler(struct trapframe *tf);
 
 ### 验证阶段
 
-先强制重编四个对象，记录命令和退出码，并核对原测试/队友文件未改。页操作及线程模块尚未完成，完整构建、QEMU 和原评分留到后续进行；不得改测试使编译通过。
+先强制重编四个对象，记录命令和退出码，并核对原测试/队友文件未改。该迁移阶段页操作及线程模块尚未完成，完整构建、QEMU 和原评分留到后续进行；不得改测试使编译通过。
 ````
 
 #### 实现迭代过程
@@ -1219,7 +1219,7 @@ make qemu
 
 #### 3. 启动映射与虚实地址
 
-`code/kern/init/entry.S` 的 `boot_page_table_sv39` 在根表第2项设置启动阶段的临时恒等映射，将虚拟地址 0x80000000 映射到同一物理地址；第511项用 `PPN=0x80000` 与 `0xcf` 建立 1 GiB 叶映射。高地址区间从 `0xffffffffc0000000` 开始，对应物理区间 `[0x80000000, 0xc0000000)`。启动代码将根页表虚址减去 `0xffffffff40000000` 得到物理地址，再把物理页号和 Sv39 模式写入 `satp`，执行 `sfence.vma`，经临时恒等映射跳到高地址标签 `.Lhigher_half`；随后清除根表第2项并再次刷新 TLB，再设置高地址栈并跳到 `kern_init`。`code/tools/kernel.ld` 的链接起点 `0xffffffffc0200000` 对应加载地址 `0x80200000`。启动映射覆盖 1 GiB，实际可分配 RAM 由设备树、内核管理上界和保留区共同决定。
+`code/kern/init/entry.S` 的 `boot_page_table_sv39` 在根表索引2处（索引从0开始）设置启动阶段的临时恒等映射，将虚拟地址 0x80000000 映射到同一物理地址；第511项用 `PPN=0x80000` 与 `0xcf` 建立 1 GiB 叶映射。高地址区间从 `0xffffffffc0000000` 开始，对应物理区间 `[0x80000000, 0xc0000000)`。启动代码将根页表虚址减去 `0xffffffff40000000` 得到物理地址，再把物理页号和 Sv39 模式写入 `satp`，执行 `sfence.vma`，经临时恒等映射跳到高地址标签 `.Lhigher_half`；随后清除根表第2项并再次刷新 TLB，再设置高地址栈并跳到 `kern_init`。`code/tools/kernel.ld` 的链接起点 `0xffffffffc0200000` 对应加载地址 `0x80200000`。启动映射覆盖 1 GiB，实际可分配 RAM 由设备树、内核管理上界和保留区共同决定。
 
 #### 4. VMA 与实际页映射
 
@@ -1376,7 +1376,7 @@ QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，�
 
 构建日志中 kmalloc.c:92 存在整数传给指针参数的警告；构建及运行成功，未改动该框架文件。链接器 removing unused section 是移除未使用段，也说明不能把被移除模块当作本次运行覆盖。
 
-可复现脚本：`code/tests/member_a/run_page_ops_host.py`、`run_page_ops_qemu.py`，均传入 `--root` 指定仓库根目录。历史阶段证据位于 `report/logs/member-a-page-ops-host.log` 和 `member-a-page-qemu*`，由 lab4_cheng 恢复，不能视为当前源码的新一轮测试日志；最终整机截图和评分见 5.2、5.3。
+可复现脚本：`code/tests/member_a/run_page_ops_host.py`、`run_page_ops_qemu.py`，均传入 `--root` 指定仓库根目录。独立测试记录位于 `report/logs/member-a-page-ops-host.log` 和 `member-a-page-qemu*`。这些路径最初由 lab4_cheng 恢复，本轮在 8d489d8 上重新运行脚本后已更新；旧阶段内容可从历史提交 d165b2e 查阅。运行输出若与旧文件完全相同，Git 不会将其列为修改；最终整机截图和评分见 5.2、5.3。
 
 【此处应放置截图：在仓库根目录执行 `python3 code/tests/member_a/run_page_ops_host.py --root "$PWD"`，看到八条 PASS、RESULT: 8/8 和最后的 EXIT_CODE: 0】
 
@@ -1399,6 +1399,34 @@ QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，�
 ![杨茜茹在集成版上的 QEMU 启动复验](images/member-a-integrated-qemu.png)
 
 图 5-3　我在 `9f98313` 上复验时，内存自检通过，调度器成功切换到 `init` 线程。线程打印完毕后返回，进入框架预留的 `do_exit()` 逻辑。
+
+#### 杨茜茹：修复版最终复验（8d489d8）
+
+2026年11月16日，我更新到 `8d489d8` 后重新验证。该提交补上 Best-Fit 尾插后的循环退出，将 `get_pte()` 的两级非叶项改为 `ptd_create()`，并调整对应页表自检；这些修复由程子涵提交，我负责本轮复验，未再次修改正式源码。
+
+以下命令均从仓库根目录执行：
+
+| 验证项目 | 命令 | 本轮结果 |
+| --- | --- | --- |
+| 页操作宿主测试 | `python3 code/tests/member_a/run_page_ops_host.py --root "$PWD"` | 8/8，编译与执行退出码均为0 |
+| 独立 QEMU | `python3 code/tests/member_a/run_page_ops_qemu.py --root "$PWD"` | 原物理页和页表自检及四组检查通过，`ISOLATED_QEMU: PASS` |
+| 完整构建 | `make -C code clean` 后执行 `make -C code` | 完成构建 |
+| 原评分 | `make -C code grade` | PMM、Process Create、Schedule 均为 OK，30/30 |
+| 普通启动 | `make -C code qemu` | 内存与VMA/VMM自检通过，PID 1的 init 打印 Hello world!! |
+
+宿主测试中的分配失败仍由模拟依赖注入；独立 QEMU 检查真实页表和访存，不替代整机测试。普通启动末尾的 `process exit!!` 来自框架 `do_exit()` 占位路径，不表示已经实现进程退出和资源回收。
+
+【此处应放置截图：执行 `make -C code grade`，看到 PMM、Process Create、Schedule 三项 OK 及 Total Score: 30/30。】
+
+![杨茜茹在8d489d8上的评分结果](images/member-a-lab4-8d489d8-grade.png)
+
+图 5-4　本轮原评分三项通过，总分30/30。
+
+【此处应放置截图：执行 `make -C code qemu`，看到内存自检、PID 1的 init 输出，以及框架 process exit!! 占位信息。】
+
+![杨茜茹在8d489d8上的普通启动结果](images/member-a-lab4-8d489d8-qemu.png)
+
+图 5-5　修复版启动与首次线程运行通过；末尾保留框架退出占位路径的输出。图5-1至图5-3仍为此前阶段证据。
 
 ### 5.2 成员二：进程创建与早期整机联调
 
