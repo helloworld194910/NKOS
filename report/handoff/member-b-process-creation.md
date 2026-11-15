@@ -424,9 +424,19 @@ char *set_proc_name(struct proc_struct *proc, const char *name);
 
 带代次的方案可以在每次重用槽位时递增代次，查询时同时比较编号和代次。代次位宽和回绕条件影响它能提供多长时间的区分。稳定句柄可以借对象引用计数维护身份，即使进程已退出，持有者也能识别原对象已经失效。对象的生命期与可执行线程的生命期因此可以分开管理。
 
-#### 3. 实际项目源码：Linux v6.12 的 pidfd
+#### 3. 课堂源码核对：RISC-V uCore 的 PID 分配与回收
 
-现有分工资料只给出课堂纪要中的拼写 `newcall`。检索了该拼写与操作系统、PID 复用的组合，未能把它定位到老师指定的内核仓库和版本。下面使用已核对源码的 Linux v6.12 作为可验证案例，课堂指定项目仍待根据课件或仓库地址确认。
+在 2026 年 11 月 10 日 Lab4 录制约 25:24 处，自动字幕把项目名识别为 `newcall`，共享画面展示的是 `get_pid(void)`，其中可见 `MAX_PID > MAX_PROCESS`、`last_pid`、`next_safe`，以及达到 `MAX_PID` 时回到 1 的代码。对照清华课程仓库 `oscourse-tsinghua/ucore-rv` 的固定提交 `79726a60baab6b66864f7f2e5e2c808b875c9634`，其中 Lab4 的 `get_pid()` 与本实验包的函数仅有格式差异。据此用 RISC-V uCore 的这份源码回答课堂题。该提交用于复核代码，录制画面没有给出课堂演示的精确提交。 [RISC-V uCore 项目说明](https://github.com/oscourse-tsinghua/ucore-rv/blob/79726a60baab6b66864f7f2e5e2c808b875c9634/README.md#bbl-ucore-ucore-os-labs-on-berkeley-boot-loader) · [Lab4 的 get_pid()](https://github.com/oscourse-tsinghua/ucore-rv/blob/79726a60baab6b66864f7f2e5e2c808b875c9634/labcodes/lab4/kern/process/proc.c#L136-L169)
+
+| 阶段 | 源码行为 |
+| --- | --- |
+| 分配 | `MAX_PID = 2 × MAX_PROCESS = 8192`，普通 PID 范围为 1 至 8191。游标从上次发出的号码向后找，达到上界时回到 1。回绕或达到 `next_safe` 时扫描 `proc_list`，跳过所有已登记的冲突编号。释放操作不会重置游标，旧编号要等到游标再次到达时才可能分配，实际间隔取决于当时的占用情况。 [编号上限](https://github.com/oscourse-tsinghua/ucore-rv/blob/79726a60baab6b66864f7f2e5e2c808b875c9634/labcodes/lab4/kern/process/proc.h#L35-L39) · [本组分配与登记](../../code/kern/process/proc.c#L379-L401) |
+| 退出和回收 | 同一仓库的 Lab5 参考实现中，`do_exit()` 先将进程标为 `PROC_ZOMBIE`，其 PCB 仍留在进程表中。父进程调用 `do_wait()` 回收时，先由 `unhash_proc()` 和 `remove_links()` 从哈希及进程链表移除，再释放栈和 PCB。移除后，分配器再次扫到该编号便可使用它。 [标记退出](https://github.com/oscourse-tsinghua/ucore-rv/blob/79726a60baab6b66864f7f2e5e2c808b875c9634/labcodes_answer/lab5_result/kern/process/proc.c#L462-L489) · [移除与回收](https://github.com/oscourse-tsinghua/ucore-rv/blob/79726a60baab6b66864f7f2e5e2c808b875c9634/labcodes_answer/lab5_result/kern/process/proc.c#L752-L767) |
+| 按 PID 查询 | `find_proc(pid)` 在哈希桶中按整数 PID 匹配。编号释放后，旧整数在空档期查不到对象。回绕并把该编号发给新进程后，同一个整数可查到新对象。 [Lab5 的 find_proc()](https://github.com/oscourse-tsinghua/ucore-rv/blob/79726a60baab6b66864f7f2e2c808b875c9634/labcodes_answer/lab5_result/kern/process/proc.c#L247-L266) |
+
+因此，课堂代码采用的是顺序分配、回绕查重和回收前保留编号。它保证已登记进程的 PID 唯一，也允许已回收编号再次使用。跨越回收和再次分配的旧引用需要额外的身份机制。本组 Lab4 的 `do_exit()` 仍是骨架占位，完整回收路径的结论来自上述 Lab5 参考源码。课堂题要求源码分析，现有 Lab4 分配器已具备所讨论的机制。
+
+#### 4. 对照案例：Linux v6.12 的 pidfd
 
 | 文件与函数 | 源码依据 |
 | --- | --- |
