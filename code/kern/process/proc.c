@@ -430,16 +430,19 @@ void proc_run(struct proc_struct *proc)
     if (proc != current)
     {
         bool intr_flag;
-        struct proc_struct *prev = current, *next = proc;
+        struct proc_struct *prev, *next = proc;
 
         // 切换过程中 current、satp、执行现场必须保持一致，所以要关中断
         local_intr_save(intr_flag);
         {
+            prev = current;
             // 1. 更新当前线程
             current = proc;
             // 2. 切换页表（内核线程 pgdir 都是 boot_pgdir_pa，切换是幂等的，
             //    但保留这一步才能在后续实验支持用户进程）
             lsatp(next->pgdir);
+            // SATP 写入本身不清除旧的地址转换缓存。
+            flush_tlb();
             // 3. 保存 prev 的现场、恢复 next 的现场
             switch_to(&(prev->context), &(next->context));
         }
