@@ -37,3 +37,12 @@ lab4 injection complete
   -check Process Create:                     OK
   -check Schedule:                           OK
 Total Score: 30/30
+
+Retest after scoping the compatibility flag to the injected test source.
+
+$ make grade
+lab4 injection complete
+  -check PMM:                                OK
+  -check Process Create:                     OK
+  -check Schedule:                           OK
+Total Score: 30/30

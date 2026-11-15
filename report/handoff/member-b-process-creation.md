@@ -522,7 +522,7 @@ make grade
 
 其中 `check Process Create: OK` 对应串口输出中的 `[Test Process Create] PASS`。该组断言覆盖 `current == idleproc`、idle 的状态与启动栈、init 的 PID、状态、父线程、`mm` 和初始上下文。
 
-若使用 GCC 14 或之后的版本，评分副本可能在 `test_lab4_thread` 处报 `incompatible-pointer-types`。本包的测试回调返回 `void`，而 `kernel_thread()` 的入口形参要求函数返回 `int`。遇到该诊断时优先使用课程提供的工具链，也可用 `make grade DEFS=-Wno-error=incompatible-pointer-types` 把这一项降为警告。 [GCC 14 移植说明](https://gcc.gnu.org/gcc-14/porting_to.html)
+本包的 `test_lab4_thread` 返回 `void`，而 `kernel_thread()` 的入口形参要求函数返回 `int`。首次用 GCC 14 复测时，评分命令额外传入了 `DEFS=-Wno-error=incompatible-pointer-types`。当前构建仅在评分副本编译注入的 `test_lab4.c` 时将这项诊断保留为警告，直接执行 `make grade` 即可复现。 [GCC 14 移植说明](https://gcc.gnu.org/gcc-14/porting_to.html)
 
 ### 图 3：修复前的 Best-Fit 自检故障
 

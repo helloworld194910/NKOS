@@ -205,7 +205,7 @@ QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，�
 
 基线提交 `ae87b52` 已包含页操作，链接时仍缺 `proc_init` 与 `cpu_idle`。在此基础上接入模块二和调度代码，使用临时恒等映射完成低地址到高地址的启动过渡，并采用 Sv39 SATP 编码。评分器改为直接启动 QEMU 采集串口，继续使用原测试、注入器和判分条件。
 
-在 WSL Ubuntu、RISC-V GCC 14.2.0 和 QEMU 4.1.1 下执行 `make clean`、`make`、`make qemu` 和 `make grade DEFS=-Wno-error=incompatible-pointer-types`。PMM、Process Create 和 Schedule 均通过，合计 **30/30**。普通启动在打印 PID 1、名称 `init` 和 `Hello world!!` 后进入实验骨架的 `do_exit` 占位路径。 [完整启动串口记录](results/cheng-qemu.txt) · [构建及评分结果](results/cheng-grade.txt)
+在 WSL Ubuntu、RISC-V GCC 14.2.0 和 QEMU 4.1.1 下执行 `make clean`、`make`、`make qemu` 和 `make grade`。评分副本仅对注入的 `test_lab4.c` 将原测试回调的类型诊断保留为警告。PMM、Process Create 和 Schedule 均通过，合计 **30/30**。普通启动在打印 PID 1、名称 `init` 和 `Hello world!!` 后进入实验骨架的 `do_exit` 占位路径。 [完整启动串口记录](results/cheng-qemu.txt) · [构建及评分结果](results/cheng-grade.txt)
 
 ## 六、实验总结与收获
 

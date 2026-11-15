@@ -17,4 +17,4 @@ make qemu
 make grade
 ```
 
-GCC 14 将原评分源码的回调类型警告升级为错误。使用该工具链时执行 `make grade DEFS=-Wno-error=incompatible-pointer-types`。
+在 GCC 14 下，评分副本仅对注入的 `test_lab4.c` 将原测试回调的类型诊断保留为警告。

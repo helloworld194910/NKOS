@@ -116,7 +116,14 @@ KSRCDIR		+= kern/init \
 
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
 
-$(call add_files_cc,$(call listf_cc,$(KSRCDIR)),kernel,$(KCFLAGS))
+KFILES := $(call listf_cc,$(KSRCDIR))
+GRADE_TEST_SRC := $(filter %/test_lab4.c,$(KFILES))
+$(call add_files_cc,$(filter-out $(GRADE_TEST_SRC),$(KFILES)),kernel,$(KCFLAGS))
+
+# The injected course test uses a void callback where kernel_thread expects int.
+ifneq ($(GRADE_TEST_SRC),)
+$(call add_files_cc,$(GRADE_TEST_SRC),kernel,$(KCFLAGS) -Wno-error=incompatible-pointer-types)
+endif
 
 KOBJS	= $(call read_packet,kernel libs)
 
