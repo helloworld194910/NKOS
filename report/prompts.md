@@ -11,7 +11,171 @@
 
 **负责人：2412790 杨茜茹。**
 
-### 任务一：页映射插入与删除
+### 任务一：迁移 Lab2/Lab3 基础功能
+
+本页按新要求补全已有提示词，保留实现范围与实际验证记录。
+
+[PROMPT]
+
+**任务：** 在 Lab4 工程中补齐 `code/kern/mm/default_pmm.c`、`code/kern/mm/pmm.c` 的 lab2 标记，以及 `code/kern/trap/trapentry.S`、`code/kern/trap/trap.c` 的 lab3 标记。实际修改文件，不仅展示代码。参考本组 Lab3 集成提交 `6d8bc3cc39a3e5751aa3ce9dda7b6464773e5f07` 中已有的物理内存和 Trap 实现，按照 Lab4 当前接口适配，保留原作者与迁移者信息。
+
+**思路：** 设备树提供 RAM 范围，page_init 建立 Page 数组，保留内核及管理结构占用页，把其余完整页面交给 Best-Fit。分配器按地址组织空闲块，分配时遍历选最小适配块，释放时合并相邻块。Trap 先由框架保存寄存器，再传入 C 处理，最后恢复返回状态及通用寄存器。定时器继续重装和计数，不沿用 Lab3 十次报告后关机策略。
+
+**修改边界：** 只改上述四个源文件的填空及必要的错误头文件引用。保留原 basic_check、best_fit_check、页表检查、SAVE_ALL、forkrets、idt_init 与 trap 分发。不得修改进程创建、调度、switch.S、Makefile、结构体及原评分脚本；本次不实现 page_insert/page_remove。允许新增内部静态辅助函数和变量，不新增跨文件公共接口。
+
+**输出：** 给出四文件差异、迁移说明及四个对象文件的编译结果。未运行的 QEMU/评分明确写未验证，不把对象编译当作完整内核通过。
+
+[RELY]
+
+- `code/kern/mm/pmm.h` 提供 pmm_manager 的 init、init_memmap、alloc_pages、free_pages、nr_free_pages、check 接口；签名以该文件为准。
+- Lab4 `default_pmm.h` 声明的是 default_pmm_manager，pmm.c 也选择该对象。default_pmm.c 引用的 best_fit_pmm.h 在框架中不存在，应改为 default_pmm.h；算法仍为 Best-Fit，以兼容原测试。
+- `code/kern/mm/memlayout.h` 的 Page 包括 ref、flags、property、page_link、pra_page_link、pra_vaddr；后两项也应初始化，但本任务不实现换页。
+- 链表与基本类型来自 `code/libs/list.h`、`code/libs/defs.h`。引用计数及地址转换使用 pmm.h；内存信息使用 dtb.h 的 get_memory_base/get_memory_size。
+- 可管理物理上界按 `KERNTOP - va_pa_offset` 计算；npage 是物理页号上界，描述符数量为 npage-nbase。
+- Lab4 SAVE_ALL 使用 36 个 REGBYTES 槽；槽 2 是原 sp，32/33 是 sstatus/sepc，34/35 是诊断信息。当前框架没有写 x0 槽，不能照搬“该槽必为零”的测试假设。sscratch 行为也以当前框架为准。
+- clock_set_next_event、ticks、print_ticks 已提供；不新增时钟源或调度策略。
+
+[GUARANTEE]
+
+必须提供以下定义并与现有调用连接：
+
+```c
+static void page_init(void);
+static void best_init(void);
+static void best_init_memmap(struct Page *base, size_t n);
+static struct Page *best_alloc_pages(size_t n);
+static void best_free_pages(struct Page *base, size_t n);
+static size_t best_nr_free_pages(void);
+static void best_insert_free_block(struct Page *base, size_t n);
+const struct pmm_manager default_pmm_manager; // check 指向原 best_fit_check
+void interrupt_handler(struct trapframe *tf);
+static int exception_inst_length(uintptr_t epc);
+void exception_handler(struct trapframe *tf);
+```
+
+汇编补齐 RESTORE_ALL 与 __alltraps 内传参、调用。保持 free_area/free_list/nr_free 的原测试约定，必要时前向声明 best_fit_check。
+
+[SPECIFICATION]
+
+### page_init
+
+**Pre-Condition：** 已解析设备树，启动映射生效，管理器已初始化；采用固定 DRAM_BASE 的单段 RAM。
+
+**Post-Condition：** offset/npage/pages 正确；保留区不会进入空闲链表。
+
+**Case 1：** 正常 RAM：裁剪上界、尾端向下页对齐；描述符置于内核 end 后的页边界，先检查容纳空间再写入；所有页初始保留，描述符后完整空闲页注册一次。
+
+**Case 2：** base/size 为零、求和溢出、base 不符、RAM 不覆盖内核或放不下描述符：panic，不静默使用默认 RAM。
+
+**Case 3：** 描述符能放下但无完整空闲页：不调用 init_memmap。
+
+**Requirements：** VA/PA/PPN/Page 指针分清，初始化两个链表节点及 pra_vaddr；保留实际范围输出。
+
+### best_init
+
+**Pre-Condition**：管理器尚未接管活动分配。
+
+**Post-Condition**：空闲链表自环，nr_free 为零。
+
+**Case 1**：启动首次调用后，在登记 RAM 前查询空闲页数，得到零。
+
+**Requirements**：初始化模块自己的状态，不改物理页描述符布局。
+
+### best_init_memmap
+
+**Pre-Condition：** 管理器已初始化；登记的 n>0，区间有效且每页 Reserved。
+
+**Post-Condition：** 登记页引用为零、解除保留，通过 best_insert_free_block 按地址入表并合并相邻块；已有空闲区保留。
+
+**Cases：** 空表插入；表头/中间/表尾插入；前邻、后邻、双向连续分别合并；n=0 或非 Reserved 触发断言。
+
+**Requirements：** 只给块头设 PageProperty；每次登记/释放只累计一次 n，不因合并重复计数。
+
+### best_insert_free_block
+
+**Pre-Condition：** n>0，区间有效且未在空闲链表中；调用者已清理区间内页面的标志和引用。该函数同时供登记和释放路径调用，不要求页面仍为 Reserved。
+
+**Post-Condition：** 区间按地址顺序插入一次；相邻空闲块合并，nr_free 只增加 n。
+
+**Cases：** 空表、表头、中间和表尾插入；仅前邻、仅后邻、双向相邻分别合并。
+
+**Requirements：** 插入完成后停止查找，不能重复挂接同一节点；合并时清除被吞并块头的 PageProperty 并摘除其节点。
+
+### best_alloc_pages
+
+**Pre-Condition：** 已初始化；有效调用 n>0。
+
+**Post-Condition：** 成功分配恰好 n 页，计数减 n，已分配头清 PageProperty。
+
+**Case 1：** 多个可用块选择 property>=n 中最小的；同长选低地址。完全匹配摘除，较大则低端分配、余块仍按地址排列。
+
+**Case 2：** 总量不足、空表或无连续块：NULL，状态不变。
+
+**Case 3：** n=0：断言。
+
+### best_nr_free_pages
+
+**Pre-Condition**：管理器已初始化。
+
+**Post-Condition**：返回当前空闲页数，链表和计数保持原状。
+
+**Case 1**：空表且计数为零时返回零。登记、分配或释放后返回各次操作更新的计数。
+
+**Requirements**：按页计数，维持原测试直接读写 nr_free 的约定。
+
+### best_free_pages
+
+**Pre-Condition：** 释放有效已分配连续区间，n>0，每页非 Reserved 且非空闲块头；不是任意错误指针检测器。
+
+**Post-Condition：** 清引用和标志，通过插入辅助函数回收及合并，计数加 n；查询返回计数且不改状态。
+
+**Cases：** 不相邻、仅前邻、仅后邻、双向相邻；零长度/不符页面状态断言。保持原测试的临时链表隔离方式，不增加独立索引。
+
+### RESTORE_ALL / __alltraps
+
+**Pre-Condition：** 框架已保存完整的内核态帧；栈符合调用对齐。
+
+**Post-Condition：** a0=sp 调用 trap，返回后恢复 sstatus/sepc 与 x1、x3..x31，最后加载原 sp，经已有 sret 返回。
+
+**Cases：** 普通返回；处理器修改帧内寄存器/epc 后按修改返回；forkrets 直接进入 __trapret 仍有效。
+
+**Requirements：** x0 不恢复，sp 必须最后恢复，不恢复诊断 CSR；不增加 U/S 切换，不改变 SAVE_ALL。
+
+### interrupt_handler
+
+**Pre-Condition：** 分发器已识别为中断，tf 有效。
+
+**Post-Condition：** 原 epc 不变。
+
+**Cases：** S timer 重装后 ticks 加一，每100次调用原 print_ticks；S software 清 SSIP；其他原因打印现场。
+
+**Requirements：** 不带入十次报告关机，不冒充完整外设处理，不修改调度策略；原 DEBUG_GRADE 行为保留。
+
+### exception_inst_length / exception_handler
+
+**Pre-Condition：** 对断点和非法指令，epc 处至少16位可读；其他异常不读取 epc 内容。
+
+**Post-Condition：** 16位返回2，32位返回4，长编码返回0；只对已知长度的断点/非法指令推进 epc。
+
+**Cases：** c.ebreak 跳2，ebreak 跳4，非法指令按编码跳2/4；长编码和其他异常仅诊断，不擅自推进。
+
+**Requirements：** 这是课程内核的恢复范围，不声称支持任意损坏地址或缺页恢复。
+
+### default_pmm_manager 注册
+
+**Pre-Condition**：Lab4 的 default_pmm.h 声明 default_pmm_manager，pmm.c 的 init_pmm_manager 已选用该对象。
+
+**Post-Condition**：init、init_memmap、alloc_pages、free_pages、nr_free_pages 分别绑定对应 best_* 函数，check 绑定原 best_fit_check。
+
+**Case 1**：完成初始化后，经公共 alloc_pages 调用进入 Best-Fit 实现。若最先遇到的空闲块较大，仍选择后面最小的适配块。
+
+**Requirements**：使用 Lab4 的 default_pmm_manager 符号。示例中的 best_fit_pmm_manager 名称属于 Lab2。保留原检查函数及 free_list、nr_free 约定。链表接口取自 code/libs/list.h。
+
+### 验证阶段
+
+先强制重编四个对象，记录命令和退出码，并核对原测试/队友文件未改。页操作及线程模块尚未完成，完整构建、QEMU 和原评分留到后续进行；不得改测试使编译通过。
+
+### 任务二：页映射插入与删除
 
 负责人：2412790 杨茜茹。
 
@@ -38,11 +202,11 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 [SPECIFICATION]
 
-#### page_insert
+### page_insert
 
 **Pre-Condition：** pgdir、page 有效；页面尚未释放；页表路径符合上述约定。
 
-**Post-Condition：** 成功返回0，目标页表项指向page，权限更新，对应引用增加一次；失败返回-E_NO_MEM，不增加数据页引用，不留下本次创建的半成品页表。
+**Post-Condition：** 成功返回0，目标页表项指向page，权限更新；新建映射或异页替换时新页引用增加一次，同页重插时净引用不变；失败返回-E_NO_MEM，不增加数据页引用，不留下本次创建的半成品页表。
 
 **Case 1：** 无旧映射：定位/创建末级PTE，引用加一，写入映射并刷新对应TLB。
 
@@ -56,7 +220,7 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 **Requirements：** 取得PTE成功后才变更数据页引用；不要复制整套get_pte；不把已有共享页表当作失败清理对象。
 
-#### page_remove
+### page_remove
 
 **Pre-Condition：** 页目录有效，路径符合4KiB框架约定，有效映射的引用计数正确。
 
@@ -72,7 +236,9 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 **Requirements：** 不自动回收空中间页表，原检查及地址空间拥有者负责其生命周期。此任务不改调度/关中断策略。
 
-#### 待执行验证
+### 验收及输出
+
+列出实际修改位置、成功和失败路径、执行的命令、退出码及未验证场景。提供可复现记录。
 
 对象编译只是第一步。独立测试需覆盖新映射、同页更新权限、不同页替换、多地址共享、未对齐la、缺失/无效/重复删除、两级分配失败回滚和已有中间表的保留；之后运行原页表检查与集成评分。每项记录实际结果，不能以设计用例代替执行证据。
 
@@ -80,7 +246,7 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 负责人：2412790 杨茜茹。
 
-**记录性质：** 实际过程是先提出独立测试需求，AI 编写宿主测试与临时 QEMU 工程脚本，再由本人在 WSL 执行并反馈日志。以下按照课程四段式模板整理已实现的测试设计，供复现与答辩使用，不声称是运行前逐字发送的原始提示词。前两项实现任务的原文保留。
+**记录性质：** 实际过程是先提出独立测试需求，AI 编写宿主测试与临时 QEMU 工程脚本，再由本人在 WSL 执行并反馈日志。以下按照课程四段式模板整理已实现的测试设计，供复现与答辩使用，不声称是运行前逐字发送的原始提示词。前两项为按最新要求完善后的实现提示词，不作为历史逐字原文。
 
 [PROMPT]
 
@@ -104,7 +270,7 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 [SPECIFICATION]
 
-#### 宿主验证
+### 宿主验证
 
 **Pre-Condition：** 读取当前 pmm.c；提取两个真实函数体，测试依赖不替代被测函数本身。
 
@@ -123,7 +289,7 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 **Requirements：** free_page 模拟器拒绝非零引用释放和重复释放；明确这些故障由模拟 get_pte 注入，不声称真实分配器已经历内存耗尽。
 
-#### QEMU 验证
+### QEMU 验证
 
 **Pre-Condition：** 工程已完成前置迁移及页操作；WSL 有交叉工具链和 QEMU。
 
@@ -139,16 +305,13 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 **Requirements：** 不通过访问已删除地址触发未接入处理器的故障；不据普通读写推定权限故障已验证。物理页及中间表计数按当前工程检查，不硬编码启动空闲页数。测试入口没有初始化中断/调度，不能声称这些模块运行通过。
 
-#### 已取得的实际结果
+### 已取得的实际结果
 
 - 宿主：用户在 WSL 执行，8/8，编译和运行退出码均为0；提交0aa69b5保存脚本和日志。
 - QEMU：原页表自检与新增4组检查通过，ISOLATED_QEMU: PASS；提交3192bda保存脚本、日志、结果和源码哈希。
 - 已知警告：kmalloc.c:92 参数类型转换警告；此次构建成功，没有修改框架以消除警告。
-- 未验证：真实分配器内存耗尽注入、权限异常、并发修改、多核TLB、Trap运行链及全组评分。
-
----
-
-<a name="module-two"></a>
+- 独立测试阶段未覆盖：真实分配器内存耗尽注入、权限异常、并发修改、多核TLB、Trap运行链及全组评分。
+- 后续集成阶段：本人在 9f98313 上执行评分与普通启动，记录见 report.md 第5.1节。该记录不表示所有 Trap 异常场景均已验证；最终源码与修复记录的一致性仍需集成复核。
 
 ## 功能模块二——进程创建及初始化
 

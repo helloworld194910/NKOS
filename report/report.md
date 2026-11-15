@@ -47,7 +47,7 @@
 
 | 成员 | AI 编程工具 | 底层模型 | 备注 |
 |------|------------|---------|------|
-| 2412790-杨茜茹 | VS Code、Codex 桌面应用 | 原记录未注明具体版本 | 在 WSL Ubuntu 中迁移基础代码，完成页操作和模块验证 |
+| 2412790-杨茜茹 | VS Code、Codex 桌面应用 | GPT-6.1 Sol | 在 WSL Ubuntu 中迁移基础代码，完成页操作和模块验证 |
 | 2413921-程子涵 | ChatGPT Codex（Work 模式） | GPT-6 系列，具体版本未记录 | 核对进程创建接口、整理规格与测试用例 |
 | 2411824-于蕾 | Codex | 具体版本未单独记录 | 完善调度代码，执行联调、补充检查与报告整理 |
 
@@ -166,6 +166,8 @@ void exception_handler(struct trapframe *tf);
 ````markdown
 ## 任务一：迁移 Lab2/Lab3 基础功能
 
+本页按新要求补全已有提示词，保留实现范围与实际验证记录。
+
 [PROMPT]
 
 **任务：** 在 Lab4 工程中补齐 `code/kern/mm/default_pmm.c`、`code/kern/mm/pmm.c` 的 lab2 标记，以及 `code/kern/trap/trapentry.S`、`code/kern/trap/trap.c` 的 lab3 标记。实际修改文件，不仅展示代码。参考本组 Lab3 集成提交 `6d8bc3cc39a3e5751aa3ce9dda7b6464773e5f07` 中已有的物理内存和 Trap 实现，按照 Lab4 当前接口适配，保留原作者与迁移者信息。
@@ -222,15 +224,35 @@ void exception_handler(struct trapframe *tf);
 
 **Requirements：** VA/PA/PPN/Page 指针分清，初始化两个链表节点及 pra_vaddr；保留实际范围输出。
 
-### best_init / best_init_memmap / best_insert_free_block
+### best_init
 
-**Pre-Condition：** init 尚未管理活动分配；登记的 n>0，区间有效且每页 Reserved。
+**Pre-Condition**：管理器尚未接管活动分配。
 
-**Post-Condition：** init 得到空表和零计数；登记后页引用为零、解除保留，按地址入表，相邻块合并。
+**Post-Condition**：空闲链表自环，nr_free 为零。
+
+**Case 1**：启动首次调用后，在登记 RAM 前查询空闲页数，得到零。
+
+**Requirements**：初始化模块自己的状态，不改物理页描述符布局。
+
+### best_init_memmap
+
+**Pre-Condition：** 管理器已初始化；登记的 n>0，区间有效且每页 Reserved。
+
+**Post-Condition：** 登记页引用为零、解除保留，通过 best_insert_free_block 按地址入表并合并相邻块；已有空闲区保留。
 
 **Cases：** 空表插入；表头/中间/表尾插入；前邻、后邻、双向连续分别合并；n=0 或非 Reserved 触发断言。
 
 **Requirements：** 只给块头设 PageProperty；每次登记/释放只累计一次 n，不因合并重复计数。
+
+### best_insert_free_block
+
+**Pre-Condition：** n>0，区间有效且未在空闲链表中；调用者已清理区间内页面的标志和引用。该函数同时供登记和释放路径调用，不要求页面仍为 Reserved。
+
+**Post-Condition：** 区间按地址顺序插入一次；相邻空闲块合并，nr_free 只增加 n。
+
+**Cases：** 空表、表头、中间和表尾插入；仅前邻、仅后邻、双向相邻分别合并。
+
+**Requirements：** 插入完成后停止查找，不能重复挂接同一节点；合并时清除被吞并块头的 PageProperty 并摘除其节点。
 
 ### best_alloc_pages
 
@@ -244,7 +266,17 @@ void exception_handler(struct trapframe *tf);
 
 **Case 3：** n=0：断言。
 
-### best_free_pages / best_nr_free_pages
+### best_nr_free_pages
+
+**Pre-Condition**：管理器已初始化。
+
+**Post-Condition**：返回当前空闲页数，链表和计数保持原状。
+
+**Case 1**：空表且计数为零时返回零。登记、分配或释放后返回各次操作更新的计数。
+
+**Requirements**：按页计数，维持原测试直接读写 nr_free 的约定。
+
+### best_free_pages
 
 **Pre-Condition：** 释放有效已分配连续区间，n>0，每页非 Reserved 且非空闲块头；不是任意错误指针检测器。
 
@@ -282,6 +314,16 @@ void exception_handler(struct trapframe *tf);
 
 **Requirements：** 这是课程内核的恢复范围，不声称支持任意损坏地址或缺页恢复。
 
+### default_pmm_manager 注册
+
+**Pre-Condition**：Lab4 的 default_pmm.h 声明 default_pmm_manager，pmm.c 的 init_pmm_manager 已选用该对象。
+
+**Post-Condition**：init、init_memmap、alloc_pages、free_pages、nr_free_pages 分别绑定对应 best_* 函数，check 绑定原 best_fit_check。
+
+**Case 1**：完成初始化后，经公共 alloc_pages 调用进入 Best-Fit 实现。若最先遇到的空闲块较大，仍选择后面最小的适配块。
+
+**Requirements**：使用 Lab4 的 default_pmm_manager 符号。示例中的 best_fit_pmm_manager 名称属于 Lab2。保留原检查函数及 free_list、nr_free 约定。链表接口取自 code/libs/list.h。
+
 ### 验证阶段
 
 先强制重编四个对象，记录命令和退出码，并核对原测试/队友文件未改。页操作及线程模块尚未完成，完整构建、QEMU 和原评分留到后续进行；不得改测试使编译通过。
@@ -289,7 +331,7 @@ void exception_handler(struct trapframe *tf);
 
 #### 实现迭代过程
 
-**第一次实现：** 发现原 default_pmm.c 引用缺失的 best_fit_pmm.h，而头文件和调用方使用 default_pmm_manager；统一引用及注册名称，保留原测试。根据 Lab4 的映射上界和 Page 布局适配初始化。
+**第一次实现：** 我发现原 default_pmm.c 引用缺失的 best_fit_pmm.h，而头文件和调用方使用 default_pmm_manager；统一引用及注册名称，保留原测试。根据 Lab4 的映射上界和 Page 布局适配初始化。
 
 **实际结果：** 四个对象文件编译通过；后续独立 QEMU 中物理内存与原页表检查通过。这次独立测试没有进入 Trap 中断或异常路径，相关运行检查留到后续集成阶段。
 
@@ -353,7 +395,7 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 **Pre-Condition：** pgdir、page 有效；页面尚未释放；页表路径符合上述约定。
 
-**Post-Condition：** 成功返回0，目标页表项指向page，权限更新，对应引用增加一次；失败返回-E_NO_MEM，不增加数据页引用，不留下本次创建的半成品页表。
+**Post-Condition：** 成功返回0，目标页表项指向page，权限更新；新建映射或异页替换时新页引用增加一次，同页重插时净引用不变；失败返回-E_NO_MEM，不增加数据页引用，不留下本次创建的半成品页表。
 
 **Case 1：** 无旧映射：定位/创建末级PTE，引用加一，写入映射并刷新对应TLB。
 
@@ -383,16 +425,18 @@ void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 
 **Requirements：** 不自动回收空中间页表，原检查及地址空间拥有者负责其生命周期。此任务不改调度/关中断策略。
 
-### 待执行验证
+### 验收及输出
+
+列出实际修改位置、成功和失败路径、执行的命令、退出码及未验证场景。提供可复现记录。
 
 对象编译只是第一步。独立测试需覆盖新映射、同页更新权限、不同页替换、多地址共享、未对齐la、缺失/无效/重复删除、两级分配失败回滚和已有中间表的保留；之后运行原页表检查与集成评分。每项记录实际结果，不能以设计用例代替执行证据。
 ````
 
 #### 实现迭代过程
 
-**第一次实现：** 阅读 get_pte 时发现第二次分配失败不会回收第一次分配的中间表，因此在实现规格中加入回滚要求。此项是实现前检查发现的问题，不是运行中已发生的故障。
+**第一次实现：** 我阅读 get_pte 时发现第二次分配失败不会回收第一次分配的中间表，因此在实现规格中加入回滚要求。此项是实现前检查发现的问题，不是运行中已发生的故障。
 
-**验证过程：** 对象编译通过后，先运行宿主接口测试，再运行真实 PMM 和页表的独立 QEMU 测试；目前两轮测试均通过，没有因测试失败修改页操作实现。
+**验证过程：** 对象编译通过后，我先运行宿主接口测试，再运行真实 PMM 和页表的独立 QEMU 测试；目前两轮测试均通过，没有因测试失败修改页操作实现。
 
 **关键点：** 同页重插不改变净引用数；异页替换只释放旧页最后引用；删除幂等；失败不遗留本次新增页表；修改有效映射后刷新 TLB。
 
@@ -1175,7 +1219,7 @@ make qemu
 
 #### 3. 启动映射与虚实地址
 
-`code/kern/init/entry.S` 的 `boot_page_table_sv39` 将根表前 511 项置零，最后一项用 `PPN=0x80000` 与 `0xcf` 建立 1 GiB 叶映射。高地址区间从 `0xffffffffc0000000` 开始，对应物理区间 `[0x80000000, 0xc0000000)`。启动代码将根页表虚址减去 `0xffffffff40000000` 得到物理地址，再把物理页号和 Sv39 模式写入 `satp`，执行 `sfence.vma`，设置高地址栈并跳到 `kern_init`。`code/tools/kernel.ld` 的链接起点 `0xffffffffc0200000` 对应加载地址 `0x80200000`。启动映射覆盖 1 GiB，实际可分配 RAM 由设备树、内核管理上界和保留区共同决定。
+`code/kern/init/entry.S` 的 `boot_page_table_sv39` 在根表第2项设置启动阶段的临时恒等映射，将虚拟地址 0x80000000 映射到同一物理地址；第511项用 `PPN=0x80000` 与 `0xcf` 建立 1 GiB 叶映射。高地址区间从 `0xffffffffc0000000` 开始，对应物理区间 `[0x80000000, 0xc0000000)`。启动代码将根页表虚址减去 `0xffffffff40000000` 得到物理地址，再把物理页号和 Sv39 模式写入 `satp`，执行 `sfence.vma`，经临时恒等映射跳到高地址标签 `.Lhigher_half`；随后清除根表第2项并再次刷新 TLB，再设置高地址栈并跳到 `kern_init`。`code/tools/kernel.ld` 的链接起点 `0xffffffffc0200000` 对应加载地址 `0x80200000`。启动映射覆盖 1 GiB，实际可分配 RAM 由设备树、内核管理上界和保留区共同决定。
 
 #### 4. VMA 与实际页映射
 
@@ -1332,15 +1376,29 @@ QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，�
 
 构建日志中 kmalloc.c:92 存在整数传给指针参数的警告；构建及运行成功，未改动该框架文件。链接器 removing unused section 是移除未使用段，也说明不能把被移除模块当作本次运行覆盖。
 
-可复现脚本：`code/tests/member_a/run_page_ops_host.py`、`run_page_ops_qemu.py`，均传入 `--root` 指定仓库根目录。证据位于 `report/logs/member-a-page-ops-host.log` 和 `member-a-page-qemu*`；最终整机截图和评分见 5.2、5.3。
+可复现脚本：`code/tests/member_a/run_page_ops_host.py`、`run_page_ops_qemu.py`，均传入 `--root` 指定仓库根目录。历史阶段证据位于 `report/logs/member-a-page-ops-host.log` 和 `member-a-page-qemu*`，由 lab4_cheng 恢复，不能视为当前源码的新一轮测试日志；最终整机截图和评分见 5.2、5.3。
+
+【此处应放置截图：在仓库根目录执行 `python3 code/tests/member_a/run_page_ops_host.py --root "$PWD"`，看到八条 PASS、RESULT: 8/8 和最后的 EXIT_CODE: 0】
 
 ![页操作宿主测试结果](images/member-a-page-host.png)
 
 图 5-1　页操作宿主测试的 8 个场景全部通过。页表查询、分配和 TLB 接口由测试环境模拟。
 
+【此处应放置截图：在仓库根目录执行 `python3 code/tests/member_a/run_page_ops_qemu.py --root "$PWD"`，看到三项原自检、四条 PASS 和 RESULT: MEMBER_A_PAGE_QEMU_PASS】
+
 ![页操作独立 QEMU 验证结果](images/member-a-page-qemu.png)
 
 图 5-2　独立 QEMU 中，原物理内存和页表自检通过。实际访存、共享页、映射替换、重复删除及资源回收检查均通过。
+
+**合并后复验。** 图 5-1 和图 5-2 记录合并前的实测结果。我把 Lab3 合入并归档旧源码后，从 `ffbd7e4` 导出临时副本，再跑两套测试。宿主测试 8/8 通过，独立 QEMU 输出 `ISOLATED_QEMU: PASS`。集成版复验记录如下。
+
+我在集成版本 `9f98313` 上重新运行了原评分和普通启动。`make -C code grade` 的 PMM、Process Create 和 Schedule 三项均为 `OK`，总分为 `30/30`。
+
+【此处应放置截图：执行 `make -C code qemu`，看到 PMM、页表与 VMA 自检通过，`init` 线程（PID 1）打印 `Hello world!!`，返回后出现 `process exit!!`。】
+
+![杨茜茹在集成版上的 QEMU 启动复验](images/member-a-integrated-qemu.png)
+
+图 5-3　我在 `9f98313` 上复验时，内存自检通过，调度器成功切换到 `init` 线程。线程打印完毕后返回，进入框架预留的 `do_exit()` 逻辑。
 
 ### 5.2 成员二：进程创建与早期整机联调
 
@@ -1517,6 +1575,7 @@ Total Score: 30/30
 ---
 
 <a name="summary"></a>
+
 
 ## 六、实验总结与收获
 

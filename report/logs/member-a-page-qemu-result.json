@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "timeout": false,
+  "exit_code": 0,
+  "scope": "real PMM and page operations; test-only init; no process/scheduler integration"
+}

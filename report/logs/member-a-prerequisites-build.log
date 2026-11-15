@@ -1,0 +1,9 @@
+COMMAND: make -B -C /home/yxqjrh/NKOS-lab4/code obj/kern/mm/default_pmm.o obj/kern/mm/pmm.o obj/kern/trap/trap.o obj/kern/trap/trapentry.o
+make: Entering directory '/home/yxqjrh/NKOS-lab4/code'
++ cc kern/mm/default_pmm.c
++ cc kern/mm/pmm.c
++ cc kern/trap/trap.c
++ cc kern/trap/trapentry.S
+make: Leaving directory '/home/yxqjrh/NKOS-lab4/code'
+
+EXIT_CODE: 0
