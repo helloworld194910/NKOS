@@ -5,13 +5,15 @@
 | 项目 | 内容 |
 | --- | --- |
 | 实验名称 | Lab4：进程管理 |
-| 当前撰写人 | 2412790-杨茜茹 |
-| 小组成员 | 待汇总负责人填写并核对本次分工对应姓名 |
-| 完成日期 | 尚未完成全组集成，不填最终日期 |
+| 小组成员 | 2412790-杨茜茹、2413921-程子涵、2411824-于蕾 |
 
 ### 小组分工
 
-杨茜茹负责 Lab2/Lab3 前置迁移、虚拟内存页操作、相关测试及分页拓展。进程创建负责人填写功能模块二与 PID 拓展；调度负责人填写功能模块三、中断保护拓展，并统一组织联调和最终报告汇总。以下只记录杨茜茹已完成的工作，不代写队友的实现过程。
+| 成员 | 分工 |
+| --- | --- |
+| 杨茜茹 | Lab2/Lab3 前置迁移、虚拟内存页操作、相关测试与分页拓展 |
+| 程子涵 | PCB、内核线程创建、首次运行现场与 PID 拓展 |
+| 于蕾 | 进程调度、上下文切换与中断保护 |
 
 ## 一、实验目的
 
@@ -25,7 +27,7 @@
 
 实际使用 python3、make、宿主 gcc、riscv64-unknown-elf-gcc 和 qemu-system-riscv64。交叉工具链位于 riscv64-unknown-elf-toolchain-10.2.0-2020.12.8-x86_64-linux-ubuntu14 目录；精确版本号以最终环境采集为准。QEMU 日志中的 OpenSBI v0.4 是固件版本，不是 QEMU 版本。
 
-队友填写各自实际环境和 AI 工具。
+整机联调使用 WSL Ubuntu、RISC-V GCC 14.2.0 和 QEMU 4.1.1。
 
 ## 三、实验整体逻辑分析
 
@@ -35,7 +37,7 @@
 
 ### 3.2 功能的逐步实现
 
-`kern_init → pmm_init → pic_init/idt_init → vmm_init → proc_init → cpu_idle → schedule → proc_run → switch_to`。其中页操作负责地址映射和页引用，进程创建负责 PCB、栈与首次现场，调度负责选择线程并恢复其现场。当前独立测试只运行内存相关前半段。
+`kern_init → pmm_init → pic_init/idt_init → vmm_init → proc_init → cpu_idle → schedule → proc_run → switch_to`。其中页操作负责地址映射和页引用，进程创建负责 PCB、栈与首次现场，调度负责选择线程并恢复其现场。init 首次运行时通过 `forkret → forkrets → __trapret → kernel_thread_entry → init_main` 恢复寄存器并调用线程入口。
 
 ## 四、实验内容与实现
 
@@ -113,13 +115,27 @@ void page_remove(pde_t *pgdir, uintptr_t la);
 
 **关键点：** 同页重插不改变净引用数；异页替换只释放旧页最后引用；删除幂等；失败不遗留本次新增页表；修改有效映射后刷新 TLB。
 
+实现交接与测试入口见[页操作交接](handoff/member-a-page-operations.md)。
+
 ### 功能模块二：进程创建及初始化
 
-待该模块负责人按“模块功能描述、最终提示词、实现迭代过程”填写本人内容与真实结果。
+`alloc_proc` 初始化 PCB 与链表节点，`do_fork` 分配内核栈并构造现场，然后在同一中断保护区内分配 PID、加入进程链表与哈希表、增加计数并置为可运行。发布前失败时，按相反顺序释放已取得的资源。`kernel_thread` 把入口和参数写入模板帧，`copy_thread` 为目标线程设置 trapframe 和首次切入所需的 `context`。idle 复用启动栈，init 拥有单独的内核栈，两者共享内核页表。
+
+课堂录制约 25:24 展示的 `get_pid()` 与本实验和公开版 RISC-V uCore 的实现一致，自动字幕将项目名写为 `newcall`。分配器通过顺序递增、回绕扫描和 `next_safe` 跳过已占用编号。上游 Lab5 的回收代码会将 PCB 从哈希表和进程链表移除，之后该整数 PID 可以再次分配。旧整数仍可能命中新进程，Linux v6.12 的 pidfd 可用来对照如何持有稳定的进程身份。源码版本、代码位置和分析见[程子涵的模块报告](handoff/member-b-process-creation.md)及[规格与提示词](handoff/member-b-prompts.md)。
 
 ### 功能模块三：进程调度
 
-待该模块负责人按相同结构填写，并组织最终联调。
+`schedule` 从当前线程之后循环找 `PROC_RUNNABLE`，跳过链表哨兵和不可运行线程。扫描找不到候选时使用 idle。选中项的 `runs` 增一，选中当前线程时跳过切换。`proc_run` 在关中断的区间更新 `current`、写入 RV64 的 Sv39 SATP 并刷新 TLB，然后调用 `switch_to`。SATP 使用根页表物理页号，`sfence.vma` 同步地址转换缓存。切换保存和恢复的是 C 调用边界所需的 `ra`、`sp` 和 `s0` 至 `s11`。trapframe 额外保存 Trap 返回所需的通用寄存器、状态与异常 PC。
+
+`local_intr_save` 读取原 `sstatus.SIE` 并在 SIE 为 1 时清零，`intr_flag` 保存进入临界区时中断是否开启。`local_intr_restore` 仅在标志为 1 时重新置位 SIE。
+
+| 场景 | 保存后的 SIE | 恢复后的 SIE |
+| --- | --- | --- |
+| 进入前 SIE=1 | 0 | 1 |
+| 进入前 SIE=0 | 0 | 0 |
+| 外层进入前 SIE=1，内层嵌套 | 两层临界区内均为 0 | 内层恢复后为 0，外层恢复后为 1 |
+
+无条件开启中断会破坏原先关中断的上下文，也会在嵌套时提前结束外层的保护。原版评分用例核对了可运行线程的选择、上下文切换和两个测试线程获得执行机会。当前材料未包含于蕾的原始开发提示词。
 
 ### 分页拓展
 
@@ -145,7 +161,7 @@ void page_remove(pde_t *pgdir, uintptr_t la);
 
 #### 3. 启动映射与虚实地址
 
-`code/kern/init/entry.S` 的 `boot_page_table_sv39` 将根表前 511 项置零，最后一项用 `PPN=0x80000` 与 `0xcf` 建立 1 GiB 叶映射。高地址区间从 `0xffffffffc0000000` 开始，对应物理区间 `[0x80000000, 0xc0000000)`。启动代码将根页表虚址减去 `0xffffffff40000000` 得到物理地址，再把物理页号和 Sv39 模式写入 `satp`，执行 `sfence.vma`，设置高地址栈并跳到 `kern_init`。`code/tools/kernel.ld` 的链接起点 `0xffffffffc0200000` 对应加载地址 `0x80200000`。启动映射覆盖 1 GiB，实际可分配 RAM 由设备树、内核管理上界和保留区共同决定。
+`code/kern/init/entry.S` 的 `boot_page_table_sv39` 在根表最后一项用 `PPN=0x80000` 与 `0xcf` 建立 1 GiB 叶映射。高地址区间从 `0xffffffffc0000000` 开始，对应物理区间 `[0x80000000, 0xc0000000)`。启动代码将根页表虚址减去 `0xffffffff40000000` 得到物理地址，再把物理页号和 Sv39 模式写入 `satp` 并执行 `sfence.vma`。根表索引 2 的临时恒等映射用于继续取指，跳到高地址后清除该项并再次执行 `sfence.vma`，随后设置高地址栈并进入 `kern_init`。`code/tools/kernel.ld` 的链接起点 `0xffffffffc0200000` 对应加载地址 `0x80200000`。启动映射覆盖 1 GiB，实际可分配 RAM 由设备树、内核管理上界和保留区共同决定。
 
 #### 4. VMA 与实际页映射
 
@@ -159,22 +175,23 @@ void page_remove(pde_t *pgdir, uintptr_t la);
 
 ## 五、测试与验证
 
+### 物理内存与页操作独立验证
+
 | 验证 | 实际结果 | 范围 |
 | --- | --- | --- |
 | 四个基础对象及 pmm.o 编译 | 通过 | 编译不等于运行 |
 | 宿主接口测试 | 8/8，退出码0 | 真实页操作函数体；get_pte、分配器与TLB由测试模拟 |
 | 独立 QEMU | ISOLATED_QEMU: PASS | 真实PMM、get_pte、页操作及虚拟访存；临时测试入口 |
-| 完整内核与原评分 | 未执行 | 需要进程创建、调度实现 |
 
 宿主测试覆盖新映射、非页对齐地址、同页权限更新、共享页替换、最后引用释放、重复删除、首级分配失败、部分分配回滚和已有中间表保留，组织为8个场景。
 
 QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，新增四组检查通过，包括实际地址读写、共享页、同页重插、已访问地址替换后的读取和资源回收。清理测试独占的中间表后空闲页数恢复基线。
 
-失败注入目前只在宿主测试中执行。QEMU 没有动态验证权限故障、Trap 路径和线程调度；不能由本次结果声称整机全部完成。
+失败注入在宿主测试中执行。独立 QEMU 测试的覆盖范围是物理内存管理、页表和访存。
 
 构建日志中 kmalloc.c:92 存在整数传给指针参数的警告；构建及运行成功，未改动该框架文件。链接器 removing unused section 是移除未使用段，也说明不能把被移除模块当作本次运行覆盖。
 
-可复现脚本：`code/tests/member_a/run_page_ops_host.py`、`run_page_ops_qemu.py`，均传入 `--root` 指定仓库根目录。证据位于 `report/logs/member-a-page-ops-host.log` 和 `member-a-page-qemu*`；最终整机截图及评分由调度与集成负责人补充。
+复现时分别运行 `code/tests/member_a/run_page_ops_host.py` 和 `run_page_ops_qemu.py`，并用 `--root` 指定仓库根目录。记录见[宿主测试日志](logs/member-a-page-ops-host.log)和[独立 QEMU 日志](logs/member-a-page-qemu.log)。
 
 ![页操作宿主测试结果](images/member-a-page-host.png)
 
@@ -184,6 +201,12 @@ QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，�
 
 图 5-2　独立 QEMU 中，原物理内存和页表自检通过。实际访存、共享页、映射替换、重复删除及资源回收检查均通过。
 
+### 整机联调与验证
+
+基线提交 `ae87b52` 已包含页操作，链接时仍缺 `proc_init` 与 `cpu_idle`。在此基础上接入模块二和调度代码，使用临时恒等映射完成低地址到高地址的启动过渡，并采用 Sv39 SATP 编码。评分器改为直接启动 QEMU 采集串口，继续使用原测试、注入器和判分条件。
+
+在 WSL Ubuntu、RISC-V GCC 14.2.0 和 QEMU 4.1.1 下执行 `make clean`、`make`、`make qemu` 和 `make grade DEFS=-Wno-error=incompatible-pointer-types`。PMM、Process Create 和 Schedule 均通过，合计 **30/30**。普通启动在打印 PID 1、名称 `init` 和 `Hello world!!` 后进入实验骨架的 `do_exit` 占位路径。 [完整启动串口记录](results/cheng-qemu.txt) · [构建及评分结果](results/cheng-grade.txt)
+
 ## 六、实验总结与收获
 
 ### 对操作系统的理解
@@ -192,4 +215,4 @@ QEMU 输出 check_alloc_page、check_pgdir、check_boot_pgdir 均 succeeded，�
 
 本模块尚未覆盖按需分页、换页、多核TLB通知、并发页表修改及完整用户进程隔离；这些是OS中的重要问题，不能从内核线程共享映射测试推导其已实现。
 
-队友补充各自模块收获，由汇总负责人去重整理。
+进程管理部分验证了 PCB 发布顺序、首次运行现场和协作式切换。独立用户地址空间、完整退出与回收，以及带时间片的抢占式调度留待后续实验。
