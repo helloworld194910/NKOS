@@ -28,6 +28,7 @@ $RECYCLE.BIN/
 # ---- 日志 ----
 *.log
 logs/
+results/
 *.out
 
 # ---- 环境 / 密钥 ----
