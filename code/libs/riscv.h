@@ -242,9 +242,12 @@
 #define barrier() __asm__ __volatile__("fence" ::: "memory")
 
 static inline void
-lsatp(unsigned int pgdir)
+lsatp(unsigned long pgdir)
 {
-  write_csr(satp, SATP32_MODE | (pgdir >> RISCV_PGSHIFT));
+  // 注意：satp 的 MODE 字段位于 bit[63:60]。
+  // SATP32_MODE(0x80000000) 是 RV32 的编码，在 RV64 上会把 MODE 写成 0（等价于关闭分页），
+  // 因此这里必须用 SV39 的模式号 8 并左移到最高 4 位。
+  write_csr(satp, ((unsigned long)SATP_MODE_SV39 << 60) | (pgdir >> RISCV_PGSHIFT));
 }
 
 #endif

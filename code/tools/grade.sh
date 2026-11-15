@@ -23,7 +23,8 @@ make_print() {
     echo `$make $makeopts print-$1`
 }
 
-echo `$make`
+# Build the injected tree before attempting to boot it.
+"$make" || exit 1
 
 ## command tools
 awk='awk'
@@ -33,25 +34,10 @@ grep='grep'
 rm='rm -f'
 sed='sed'
 
-## symbol table
-sym_table='obj/kernel.sym'
-
-## gdb & gdbopts
-gdb="$(make_print GDB)"
-gdbport='1234'
-
-gdb_in="$(make_print GRADE_GDB_IN)"
-
 ## qemu & qemuopts
 qemu="$(make_print qemu)"
 
 qemu_out="$(make_print GRADE_QEMU_OUT)"
-
-if $qemu -nographic -help | grep -q '^-gdb'; then
-    qemugdb="-gdb tcp::$gdbport"
-else
-    qemugdb="-s -p $gdbport"
-fi
 
 ## default variables
 default_timeout=30
@@ -85,6 +71,10 @@ show_final() {
     update_score
     echo "Total Score: $total/$total_pos"
     if [ $total -lt $total_pos ]; then
+        if [ -s "$qemu_out" ]; then
+            printf '\nLast lines of %s:\n' "$qemu_out"
+            tail -n 35 "$qemu_out"
+        fi
         exit 1
     fi
 }
@@ -107,7 +97,7 @@ show_msg() {
     echo $1
     shift
     if [ $# -gt 0 ]; then
-        echo -e "$@" | awk '{printf "   %s\n", $0}'
+        printf '%b\n' "$@" | awk '{printf "   %s\n", $0}'
         echo
     fi
 }
@@ -124,45 +114,18 @@ fail() {
 }
 
 run_qemu() {
-    # Run qemu with serial output redirected to $qemu_out. If $brkfun is non-empty,
-    # wait until $brkfun is reached or $timeout expires, then kill QEMU
-    qemuextra=
-    if [ "$brkfun" ]; then
-        qemuextra="-S $qemugdb"
-    fi
-
     if [ -z "$timeout" ] || [ $timeout -le 0 ]; then
         timeout=$default_timeout;
     fi
 
     t0=$(get_time)
-    (
-        ulimit -t $timeout
-        exec $qemu -nographic $qemuopts -serial file:$qemu_out -monitor null -no-reboot $qemuextra
-    ) > $out 2> $err &
-    pid=$!
-
-    # wait for QEMU to start
-    sleep 1
-
-    if [ -n "$brkfun" ]; then
-        # find the address of the kernel $brkfun function
-        brkaddr=`$grep " $brkfun\$" $sym_table | $sed -e's/ .*$//g'`
-        brkaddr_phys=`echo $brkaddr | sed "s/^c0/00/g"`
-        (
-            echo "target remote localhost:$gdbport"
-            echo "break *0x$brkaddr"
-            if [ "$brkaddr" != "$brkaddr_phys" ]; then
-                echo "break *0x$brkaddr_phys"
-            fi
-            echo "continue"
-        ) > $gdb_in
-
-        $gdb -batch -nx -x $gdb_in > /dev/null 2>&1
-
-        # make sure that QEMU is dead
-        # on OS X, exiting gdb doesn't always exit qemu
-        kill $pid > /dev/null 2>&1
+    # The kernel powers off after reaching its monitor. Bound hangs by wall time.
+    rm -f -- "$qemu_out"
+    timeout -k 2 "$timeout" "$qemu" -machine virt -display none -bios default \
+        -kernel "$osimg" -serial "file:$qemu_out" -monitor none -no-reboot > "$out"
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        printf 'QEMU exited with status %s. Checking the available serial output.\n' "$status" >&2
     fi
 }
 
@@ -194,14 +157,8 @@ check_result() {
     show_check_tag "$1"
     shift
 
-    # give qemu some time to run (for asynchronous mode)
-    if [ ! -s $qemu_out ]; then
-        sleep 4
-    fi
-
-    if [ ! -s $qemu_out ]; then
-        fail > /dev/null
-        echo 'no $qemu_out'
+    if [ ! -s "$qemu_out" ]; then
+        fail "No serial output in $qemu_out"
     else
         check=$1
         shift
@@ -314,12 +271,6 @@ osimg=$(make_print ucoreimg)
 
 ## swap image
 swapimg=$(make_print swapimg)
-
-## set default qemu-options
-qemuopts="-machine virt -nographic -bios default -device loader,file=bin/ucore.img,addr=0x80200000"
-
-## set break-function, default is readline
-brkfun=readline
 
 run_qemu
 

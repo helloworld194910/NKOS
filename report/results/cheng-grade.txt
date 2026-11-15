@@ -1,0 +1,39 @@
+WSL Ubuntu, riscv64-unknown-elf-gcc 14.2.0, QEMU 4.1.1
+
+$ make clean
+
+$ make
++ cc kern/init/entry.S
++ cc kern/init/init.c
++ cc kern/libs/readline.c
++ cc kern/libs/stdio.c
++ cc kern/debug/kdebug.c
++ cc kern/debug/kmonitor.c
++ cc kern/debug/panic.c
++ cc kern/driver/clock.c
++ cc kern/driver/console.c
++ cc kern/driver/dtb.c
++ cc kern/driver/intr.c
++ cc kern/driver/picirq.c
++ cc kern/trap/trap.c
++ cc kern/trap/trapentry.S
++ cc kern/mm/default_pmm.c
++ cc kern/mm/kmalloc.c
++ cc kern/mm/pmm.c
++ cc kern/mm/vmm.c
++ cc kern/process/entry.S
++ cc kern/process/proc.c
++ cc kern/process/switch.S
++ cc kern/schedule/sched.c
++ cc libs/hash.c
++ cc libs/printfmt.c
++ cc libs/string.c
++ ld bin/kernel
+riscv64-unknown-elf-objcopy bin/kernel --strip-all -O binary bin/ucore.img
+
+$ make grade DEFS=-Wno-error=incompatible-pointer-types
+lab4 injection complete
+  -check PMM:                                OK
+  -check Process Create:                     OK
+  -check Schedule:                           OK
+Total Score: 30/30
