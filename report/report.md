@@ -161,7 +161,7 @@ void exception_handler(struct trapframe *tf);
 
 #### 最终提示词
 
-提示词原文见 [prompt.md](prompt.md)。下文保留迁移任务的接口、规格和修改范围。
+迁移任务的提示词全文保留如下，包含接口、规格和修改范围。三个功能模块的提示词另见 [提示词汇总](prompts.md)。
 
 ````markdown
 ## 任务一：迁移 Lab2/Lab3 基础功能
@@ -319,7 +319,7 @@ void page_remove(pde_t *pgdir, uintptr_t la);
 
 #### 最终提示词
 
-提示词原文见 [prompt.md](prompt.md)。页映射任务全文如下，独立验证的测试规格在该文件的任务三中另行记录，属于测试后的整理。
+页映射提示词见 [功能模块一：虚拟内存页操作](prompts.md#module-one)。任务全文如下，独立验证的测试规格保留在该章节的任务三中，属于测试后的整理。
 
 ````markdown
 ## 任务二：页映射插入与删除
@@ -489,7 +489,7 @@ RV64 下 `trapframe` 为 36 个 8 字节槽，共 288 字节。内核栈为两�
 
 #### 最终提示词
 
-下面按六项代码任务列出最终提示词。含课堂拓展在内的九条独立提示词见 [prompt.md](handoff/member-b-prompts.md)。
+下面按六项代码任务列出最终提示词。含课堂拓展在内的九条独立提示词见 [功能模块二：进程创建及初始化](prompts.md#module-two)。
 
 ````markdown
 ## 01　初始化进程控制块
@@ -812,7 +812,7 @@ local_intr_restore(intr_flag);
 
 #### 最终提示词
 
-四项任务的完整提示词见 [成员三分任务提示词](handoff/member-c-prompts.md)，按 `switch_to → proc_run → schedule → cpu_idle` 排列。每项均列出 `[PROMPT]`、`[RELY]`、`[GUARANTEE]`、`[SPECIFICATION]`，明确真实文件修改要求、接口、允许修改的范围、前后置条件和 Case。
+四项任务的完整提示词见 [功能模块三：进程调度](prompts.md#module-three)，按 `switch_to → proc_run → schedule → cpu_idle` 排列。每项均列出 `[PROMPT]`、`[RELY]`、`[GUARANTEE]`、`[SPECIFICATION]`，明确真实文件修改要求、接口、允许修改的范围、前后置条件和 Case。
 
 我以当前工程签名核对依赖，保留原版测试和评分规则。提示词中的 Case 用来确定检查范围，实际结果见第五章的日志。
 
@@ -1463,7 +1463,7 @@ x/s $s1
 
 #### 5.3.1 完整构建与普通启动
 
-我在仓库根目录进入 `code` 执行：
+在仓库根目录进入 `code` 执行：
 
 ```bash
 cd code
@@ -1482,7 +1482,6 @@ To U: "en.., Bye, Bye. :)"
 
 这些输出确认 init 已真正执行。之后内核进入已有的 `do_exit()`，打印 `process exit!!` 并进入监控器；当前监控器会调用 `sbi_shutdown()`，本次 QEMU 正常结束。这个结尾是实验骨架的占位路径，不代表已经实现进程退出与资源回收。
 
-[完整构建记录](results/member-c-build.txt) · [本次普通启动记录](results/member-c-qemu.txt)
 
 【此处应放置截图：在仓库根目录执行 `cd code`、`make clean`、`make`，看到编译和链接完成、生成 `bin/kernel` 与 `bin/ucore.img`，没有编译错误。】
 
@@ -1506,60 +1505,8 @@ Total Score: 30/30
 
 三项评分分别检查 `[Test PMM] PASS`、`[Test Process Create] PASS`、`[Test Schedule] PASS` 串口标记。正式源码中没有手动加入测试入口，也没有修改判分条件。评分注入的 `test_lab4_thread` 返回 `void`，与 `kernel_thread()` 要求的 `int (*)(void *)` 不同，日志仍有对应类型警告；当前 Makefile 已对该测试文件保留警告，构建和评分正常完成。本次没有修改这项已有设置。
 
-[本次完整评分记录](results/member-c-grade.txt)
-
 【此处应放置截图：在 `code` 目录执行 `make grade`，看到 `check PMM`、`check Process Create`、`check Schedule` 均为 `OK`，并显示 `Total Score: 30/30`。】
 
-#### 5.3.3 调度边界与寄存器往返检查
-
-在仓库根目录执行：
-
-```bash
-python3 report/results/member-c-verify.py
-```
-
-脚本从真实源码提取函数体，使用当前链表、PCB 定义和中断保护代码，在临时目录生成检查程序。宿主编译开启 `-Wall -Wextra -Werror`，检查通过后再编译并运行真实 `switch.S`。
-
-| 检查项 | 场景与判据 | 实际结果 |
-|--------|------------|----------|
-| 调度选择 | 空链表、idle 选首个线程、普通后继、跳过三种非 runnable 状态、尾部回绕、选回当前线程、无候选回退 idle；分别检查入口中断开和关 | 14/14，通过；同时核对计数、请求清除和链表不变 |
-| `proc_run` 接口行为 | 目标为当前线程、不同线程共享页表、不同页表；分别检查入口中断开和关 | 6/6，通过；异线程调用顺序为加载 SATP→刷新→切换，同线程无上述操作 |
-| 嵌套中断保护 | 外层入口 SIE 为 0、1，内层不得提前开中断 | 2/2，通过 |
-| RV64 寄存器现场 | A→B→A→B→A，给两条执行流的 `s0`～`s11` 设置不同且高 32 位非零的值，核对返回地址和各自栈指针 | 真实汇编往返通过 |
-
-宿主测试用变量模拟 SIE，用桩函数记录 SATP、TLB 和切换调用，不执行真实 CSR 或 TLB 指令。RV64 独立程序实际执行 `switch.S`，但运行在用户态模拟环境，不代替整机的页表、中断检查。两类补充测试与原版评分合起来，才能说明各自覆盖的部分。
-
-`cpu_idle` 的首次调用已由普通启动验证；没有请求时持续循环、请求后再次读取，以及无候选后继续循环，本次主要根据函数体和调度边界检查核对，没有为它增加动态标志注入测试。
-
-[补充检查脚本](results/member-c-verify.py) · [补充检查日志及源码哈希](results/member-c-isolated.txt)
-
-【此处应放置截图：在仓库根目录执行 `python3 report/results/member-c-verify.py`，看到 `HOST schedule: 14/14 PASS`、`HOST proc_run: 6/6 PASS`、`HOST nested interrupt protection: 2/2 PASS`、RV64 寄存器往返 `PASS`，最后显示 `MEMBER_C_ISOLATED: PASS`。】
-
-#### 5.3.4 GDB 首次运行链与 TLB 指令核对
-
-先在 `code` 目录执行 `make`，因为 `make grade` 会清理本地构建产物。随后运行：
-
-```bash
-riscv64-unknown-elf-gdb -q -batch -x ../report/results/member-c-first-run.gdb
-```
-
-脚本通过标准输入输出连接专用 QEMU，不占用固定 TCP 端口。它从首次 `switch_to` 开始逐站检查，停到 `init_main` 后结束专用调试实例，不等待线程退出。
-
-本次 `SWITCH_TO` 行显示 `current_pid=1`、`from_idle=1`、`to_init=1`、`SIE=0`；`SATP_SV39`、`ROOT_MATCH`、`STACK_ALIGN` 均为 1。后续的帧指针比较均为 1，入口阶段的 SIE 变为 1，最终输出 `MEMBER_C_FIRST_RUN: PASS`。反汇编确认 `csrw satp` 后执行 `sfence.vma`，然后才调用 `switch_to`。
-
-[GDB 复测脚本](results/member-c-first-run.gdb) · [首次运行跟踪与反汇编记录](results/member-c-first-run.txt)
-
-【此处应放置截图：在 `code` 目录执行 `make`，再执行 `riscv64-unknown-elf-gdb -q -batch -x ../report/results/member-c-first-run.gdb`，看到 `SWITCH_TO` 中的 `SIE=0`，`SATP_SV39=1 ROOT_MATCH=1 STACK_ALIGN=1`，反汇编中依次出现 `csrw satp`、`sfence.vma`、调用 `switch_to`。】
-
-【此处应放置截图：执行同一条 GDB 命令，截取 `FORKRET`、`FORKRETS tf_match=1`、`TRAPRET sp_match=1`、`THREAD_ENTRY` 中的 `SIE=1`、`INIT_MAIN current_pid=1` 和 `Hello world!!`，最后看到 `MEMBER_C_FIRST_RUN: PASS`。】
-
-#### 5.3.5 联合调试与材料汇总
-
-我按“内存自检→进程创建→调度切换→init 输出”的顺序检查集成结果。内存自检和进程创建评分通过后，再结合首次运行断点检查成员二构造的现场是否被成员三正确读取。本次没有新增跨模块启动故障，发现并修正的调度问题是 TLB 刷新缺失；没有改写成员一、二的实现。
-
-5.2 保留了早期启动映射、Best-Fit 链表及创建失败回收的调试记录。11 月 15 日没有重新执行全部旧故障注入，本轮新增的检查是调度边界、RV64 寄存器往返和首次运行链跟踪。
-
-本次未单独动态验证不同用户页表下的 TLB 失效效果、`cpu_idle` 的全部循环边界和实际硬件中各层临界区的完整往返中断状态。本次结果来自整机启动、原版评分、首次运行跟踪和上述隔离检查。
 
 ---
 
