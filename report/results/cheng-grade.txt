@@ -46,3 +46,22 @@ lab4 injection complete
   -check Process Create:                     OK
   -check Schedule:                           OK
 Total Score: 30/30
+
+Retest before merging the full member B report.
+$ make clean
+Build: PASS
+$ make qemu
+this initproc, pid = 1, name = "init"
+To U: "Hello world!!".
+$ make grade
+  -check PMM:                                OK
+  -check Process Create:                     OK
+  -check Schedule:                           OK
+Total Score: 30/30
+
+Isolated do_fork fault-injection run:
+[Fork failure] initial process limit: PASS
+[Fork failure] PCB allocation: PASS
+[Fork failure] stack allocation: PASS
+[Fork failure] copy_mm: PASS
+[Fork failure] registration limit: PASS

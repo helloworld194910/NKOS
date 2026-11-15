@@ -4,7 +4,7 @@
 
 - [实验报告](report/report.md)
 - [内核、构建和评分工具](code/)
-- [进程创建与 PID 拓展](report/handoff/member-b-process-creation.md)
+- [进程创建与 PID 拓展](report/report.md#member-b)
 - [进程创建规格与提示词](report/handoff/member-b-prompts.md)
 
 在 WSL 或 Linux 中使用 RISC-V 交叉工具链和 QEMU：

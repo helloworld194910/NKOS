@@ -459,6 +459,8 @@ char *set_proc_name(struct proc_struct *proc, const char *name);
 
 WSL Ubuntu 上实际执行了 `make clean`、`make`、`make qemu` 及 `make grade DEFS=-Wno-error=incompatible-pointer-types`。PMM、Process Create 和 Schedule 均通过，合计 30/30。普通启动输出 PID 1、进程名 `init` 及 `Hello world!!`。本次结果见[构建与评分记录](../results/cheng-grade.txt)及[启动串口记录](../results/cheng-qemu.txt)。
 
+合并前在 WSL 的干净副本中再次执行 `make clean`、`make`、`make qemu` 和 `make grade`，三组评分仍为 **30/30**。另在临时内核副本对 `do_fork()` 注入五种失败：入口处达到进程上限、PCB 申请失败、内核栈申请失败、`copy_mm()` 返回错误、登记前达到进程上限。五种情况的错误码和资源释放次数都符合预期，空闲页数与中断状态恢复，PID 分配次数、进程链表、哈希桶和进程计数均无意外变化。故障注入结束后，init 仍成功输出 `Hello world!!`。 [复测记录](../results/cheng-grade.txt)
+
 ### 本地初版的检查
 
 整机验证在 WSL 中完成：在 `code` 目录执行 `make`、`make qemu` 和 `make grade`。`make qemu` 输出了 init 的 PID、名称和实参，`make grade` 得分为 **30/30**（见图 1、图 2）。图 3 记录的 Best-Fit 自检故障发生在成员 A 负责的物理内存模块，由联合调试定位并修复。
@@ -474,7 +476,7 @@ WSL Ubuntu 上实际执行了 `make clean`、`make`、`make qemu` 及 `make grad
 | 六个接口与注入入口 | 解析 `proc.c`，在临时副本执行原版注入器，分别检查 `proc_init`、`init_main` 的注入次数 | 语法与注入检查通过 |
 | 进程创建与初始上下文 | `make grade` 检查 idle 与 init 的 PID、状态、父线程、启动栈和初始上下文 | `check Process Create: OK` |
 | 跨模块首次运行 | `make qemu` 观察 PID、名称和实参输出 | PID 为 1，名称为 `init`，输出了 `Hello world!!` |
-| 失败回收 | 分别检查上限、PCB 申请失败、栈申请失败和 `copy_mm` 错误路径。若做故障注入，需在临时副本中检查资源释放调用和全局表是否更新 | 已逐路径审查，未执行故障注入 |
+| 失败回收 | 在临时内核副本中检查两处进程上限及 PCB、内核栈、`copy_mm` 失败路径 | 五种故障注入均通过，检查了错误码、资源释放和全局登记状态 |
 | PID 回绕与查重 | 模型按本包扫描顺序分配，对照逐号查找空闲编号的基准 | 50,000 次分配、7 次回绕结果一致 |
 
 ### 复测中的故障与修复
@@ -562,7 +564,7 @@ info registers pc sp s0 s1 a0
 x/s $s1
 ```
 
-截图可截两段。初始化后应看到 PID 0、1 和两个 `PROC_RUNNABLE`，init 的名称为 `init`，进程计数为 2，链表及哈希比较为真。哈希桶编号按 `libs/hash.c` 的 `hash32` 算法计算，即 32 位乘积的高 10 位。状态位掩码应为 `0x120`，帧中 `a0=0`。停在 `kernel_thread_entry` 第一条指令时，`s0` 指向线程函数，`s1` 指向 `Hello world!!`。普通评分未覆盖分配失败注入，失败回收在本次通过逐路径审查确认。
+初始化后应看到 PID 0、1 和两个 `PROC_RUNNABLE`，init 的名称为 `init`，进程计数为 2，链表及哈希比较为真。哈希桶编号按 `libs/hash.c` 的 `hash32` 算法计算，即 32 位乘积的高 10 位。状态位掩码应为 `0x120`，帧中 `a0=0`。停在 `kernel_thread_entry` 第一条指令时，`s0` 指向线程函数，`s1` 指向 `Hello world!!`。五种创建失败场景的验证见本节联调记录。
 
 ---
 
