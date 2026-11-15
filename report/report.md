@@ -1432,9 +1432,11 @@ WSL Ubuntu 上实际执行了 `make clean`、`make`、`make qemu` 及 `make grad
 
 第一次整机评分编译和链接成功，三组串口标记均缺失，得到 `0/30`。检查发现，启动页表原先只有内核高地址映射，开启分页时低地址的下一条指令可能无法取出。启动入口现在通过临时恒等映射进入高地址，随后撤掉临时映射。QEMU 启动使用 `-kernel` 将镜像入口交给 OpenSBI。评分脚本直接运行 QEMU，并在失败时打印串口末尾。
 
-第二次在 WSL 运行，日志确认 OpenSBI 已将控制权交给内核，设备树也已读出 128 MB 内存。第一处失败发生在 `default_pmm.c` 的 `basic_check()`。该检查先释放三页，再逐页重新申请，第二次申请得到 `NULL`。原因是空闲链表尾插后循环继续，把同一个节点再次插入，导致回收页链表损坏。已改为寻找插入位置后只挂接一次，再检查前后相邻的空闲块以完成合并。修复前的断言失败见图 3。
+第二次在 WSL 运行时，`default_pmm.c` 的 `basic_check()` 在释放三页后逐页申请，第二次申请得到 `NULL`（图 3）。本次修复在 `best_insert_free_block()` 尾插后退出循环，避免重复挂接同一节点。
 
-同时复查了之后会执行的页表自检。启动直映区由 Sv39 根表的 1 GiB 叶子项覆盖，按根表叶子项验证物理基址与页内偏移。普通 4 KiB 映射的中间项改用 `ptd_create()`，并把自检调整为验证中间项的保留位清零以及叶子项的用户权限。 [RISC-V 特权架构手册](https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf)
+`get_pte()` 创建两级非叶页表项时改用 `ptd_create()`，将保留的 `U` 位清零。`check_pgdir()` 相应检查非叶项标志，`check_boot_pgdir()` 按 Sv39 根表的 1 GiB 叶项验证启动直映。 [RISC-V 特权架构手册](https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf)
+
+基于 `lab4` 提交 `d165b2e` 和上述修复，在 WSL 临时副本中执行 `make clean`、`make` 和 `make grade`，PMM、Process Create 和 Schedule 三项均为 `OK`，总分 `30/30`。图 1 和图 2 为此前本地联调的截图。
 
 链表模型已验证三页逐次释放再分配、插到较高地址的块之前、双向合并，并将 20,000 次分配和释放与独立页位图对照。按串口日志的 128 MiB 内存范围检查了 32,768 个页地址的启动大页换算。
 
