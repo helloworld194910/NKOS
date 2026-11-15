@@ -1483,9 +1483,11 @@ To U: "en.., Bye, Bye. :)"
 这些输出确认 init 已真正执行。之后内核进入已有的 `do_exit()`，打印 `process exit!!` 并进入监控器；当前监控器会调用 `sbi_shutdown()`，本次 QEMU 正常结束。这个结尾是实验骨架的占位路径，不代表已经实现进程退出与资源回收。
 
 
-【此处应放置截图：在仓库根目录执行 `cd code`、`make clean`、`make`，看到编译和链接完成、生成 `bin/kernel` 与 `bin/ucore.img`，没有编译错误。】
+![成员三执行 make qemu，内存自检通过且 init 线程输出 PID、名称和实参](images/Cmake-qemu.png)
 
-【此处应放置截图：在 `code` 目录执行 `make qemu`，看到内存自检通过、`this initproc, pid = 1, name = "init"`、`Hello world!!` 和告别消息；同时保留后面的 `process exit!!` 占位输出。】
+*图 4　在 `code` 目录执行 `make qemu`。设备树识别出 128 MB 内存，物理页、页表、内核分配器、VMA 和 VMM 自检通过；随后 PID 为 1、名称为 `init` 的线程打印 `Hello world!!` 和告别消息。末尾保留了 `do_exit()` 的 `process exit!!` 占位输出。*
+
+从这次输出可以看到，内核已完成初始化，调度路径也确实把 CPU 从 idle 交给了 init。镜像生成的命令还可在下节评分截图中核对，该图记录了评分副本的构建末尾。
 
 #### 5.3.2 原版自动评分
 
@@ -1505,7 +1507,11 @@ Total Score: 30/30
 
 三项评分分别检查 `[Test PMM] PASS`、`[Test Process Create] PASS`、`[Test Schedule] PASS` 串口标记。正式源码中没有手动加入测试入口，也没有修改判分条件。评分注入的 `test_lab4_thread` 返回 `void`，与 `kernel_thread()` 要求的 `int (*)(void *)` 不同，日志仍有对应类型警告；当前 Makefile 已对该测试文件保留警告，构建和评分正常完成。本次没有修改这项已有设置。
 
-【此处应放置截图：在 `code` 目录执行 `make grade`，看到 `check PMM`、`check Process Create`、`check Schedule` 均为 `OK`，并显示 `Total Score: 30/30`。】
+![成员三执行 make grade，PMM、Process Create 和 Schedule 均通过，总分 30/30](images/Cmake-grade.png)
+
+*图 5　在 `code` 目录执行 `make grade`。截图保留了生成 `bin/ucore.img` 的 `objcopy` 命令，以及 `check PMM`、`check Process Create`、`check Schedule` 三项 `OK`，总分为 `30/30`。命令完成后返回终端提示符。*
+
+评分结果与图 4 的普通启动输出一致：页操作、线程创建和调度三部分通过原版检查，init 在线程切换后实际执行。图中的 `removing unused section` 是链接器清理未使用段的输出，未影响镜像生成和评分。
 
 
 ---
