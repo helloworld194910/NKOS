@@ -64,3 +64,6 @@ vendor/
 /code/obj/
 /code/bin/
 /code/build/
+
+report/results
+report/handoff
