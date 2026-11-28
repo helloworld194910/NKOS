@@ -448,18 +448,43 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool shar
             struct Page *page = pte2page(*ptep);
             uint32_t perm = (*ptep & perm_mask);
 
-            // 基础版：分配新页并复制内容，父子各持有一份独立的物理页。
-            // 共享（COW）路径在 COW 提交中接入，届时父页也要同步降权。
-            struct Page *npage = alloc_page();
-            if (npage == NULL)
+            if (share)
             {
-                return -E_NO_MEM;
+                // COW 路径：父子映射同一个物理页，但两边都必须降为只读，
+                // 否则任意一方仍能直接写入，另一方就会看到被改过的内容。
+                // 只有原本可写的页才打 COW 标记；本来就只读的页保持原语义，
+                // 避免把只读区（如代码段常量）错误地变成可写私有副本。
+                if (perm & PTE_W)
+                {
+                    perm = (perm & ~(PTE_W | PTE_D)) | PTE_COW;
+                    // 先降权父进程，再降权子进程。中途失败时父页只是变成"只读 COW
+                    // 且引用计数为 1"，下一次写缺页会在 do_cow_pgfault 中就地恢复
+                    // 写权限，因此失败也能自愈，不会把父进程永久锁成只读。
+                    if (page_insert(from, page, start, perm) != 0)
+                    {
+                        return -E_NO_MEM;
+                    }
+                }
+                // 本来就只读的页不需要降权，父子直接共读，也不打 COW 标记。
+                if (page_insert(to, page, start, perm) != 0)
+                {
+                    return -E_NO_MEM;
+                }
             }
-            memcpy(page2kva(npage), page2kva(page), PGSIZE);
-            if (page_insert(to, npage, start, perm) != 0)
+            else
             {
-                free_page(npage);
-                return -E_NO_MEM;
+                // 基础版：分配新页并复制内容，父子各持有一份独立的物理页。
+                struct Page *npage = alloc_page();
+                if (npage == NULL)
+                {
+                    return -E_NO_MEM;
+                }
+                memcpy(page2kva(npage), page2kva(page), PGSIZE);
+                if (page_insert(to, npage, start, perm) != 0)
+                {
+                    free_page(npage);
+                    return -E_NO_MEM;
+                }
             }
         }
         start += PGSIZE;
@@ -747,4 +772,6 @@ print_pgdir(void)
             }
         }
     }
+    //lab5 function3 2413921: 顺带输出 COW 写缺页次数，作为复制频率的证据。
+    cprintf("COW page faults: %d\n", (int)pgfault_num);
 }

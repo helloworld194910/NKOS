@@ -134,6 +134,7 @@ static int exception_inst_length(uintptr_t epc) {
 }
 
 //lab5 function1 2412790: user system-call entry and fault handling.
+//lab5 function3 2413921: 在这里插入 COW 写缺页分支。
 void exception_handler(struct trapframe *tf) {
     if (!trap_in_kernel(tf)) {
         if (tf->cause == CAUSE_USER_ECALL) {
@@ -142,8 +143,21 @@ void exception_handler(struct trapframe *tf) {
             syscall();
             return;
         }
+        /* 可恢复的 COW 写缺页必须在"用户异常一律结束进程"之前处理。
+         * 只有 do_cow_pgfault 明确返回 0 才继续执行，其余情况保持原策略：
+         * 打印现场并让当前进程退出，不能把非法写当成可恢复缺页吞掉。 */
+        if (tf->cause == CAUSE_STORE_PAGE_FAULT && current != NULL &&
+            do_cow_pgfault(current->mm, tf->tval) == 0) {
+            return; /* 页已私有化，sret 后重新执行这条 store */
+        }
         print_trapframe(tf);
         do_exit(-E_KILLED);
+        return;
+    }
+    /* 内核态也可能代表用户写入用户内存（copy_to_user），同样可能命中只读 COW 页。
+     * 只有确认是 COW 页才恢复，其余内核缺页保持原有诊断路径，不掩盖真实错误。 */
+    if (tf->cause == CAUSE_STORE_PAGE_FAULT && current != NULL &&
+        current->mm != NULL && do_cow_pgfault(current->mm, tf->tval) == 0) {
         return;
     }
     uintptr_t epc = tf->epc;

@@ -62,6 +62,8 @@ extern struct mm_struct *check_mm_struct;
 bool user_mem_check(struct mm_struct *mm, uintptr_t start, size_t len, bool write);
 bool copy_from_user(struct mm_struct *mm, void *dst, const void *src, size_t len, bool writable);
 bool copy_to_user(struct mm_struct *mm, void *dst, const void *src, size_t len);
+//lab5 function3 2413921: 写时复制的写缺页处理入口。
+int do_cow_pgfault(struct mm_struct *mm, uintptr_t addr);
 
 static inline int
 mm_count(struct mm_struct *mm)

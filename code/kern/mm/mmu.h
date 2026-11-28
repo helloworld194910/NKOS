@@ -79,6 +79,9 @@
 #define PTE_A 0x040    // Accessed
 #define PTE_D 0x080    // Dirty
 #define PTE_SOFT 0x300 // Reserved for Software
+//lab5 function3 2413921: COW 标记借用 RSW 位 8。硬件不解释该位，
+// 内核据此区分"被写时复制降权的共享页"和"本来就只读的页"。
+#define PTE_COW 0x100
 
 #define PAGE_TABLE_DIR (PTE_V)
 #define READ_ONLY (PTE_R | PTE_V)

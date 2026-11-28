@@ -37,6 +37,9 @@
 static void check_vmm(void);
 static void check_vma_struct(void);
 
+//lab5 function3 2413921: COW 写缺页计数，用于观察复制频率（print_pgdir 会输出）。
+volatile unsigned int pgfault_num = 0;
+
 // mm_create -  alloc a mm_struct & initialize it.
 struct mm_struct *
 mm_create(void)
@@ -220,12 +223,85 @@ int dup_mmap(struct mm_struct *to, struct mm_struct *from)
         }
         insert_vma_struct(to, new_vma);
 
-        // 2. 再按页复制实际映射。基础版逐页深拷贝，父子从此各写各的。
-        if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, false) != 0)
+        // 2. 再按页复制实际映射。share = 1 时父子共享同一物理页并降权为只读，
+        //    真正写入时由 do_cow_pgfault 触发复制；改成 0 即退回基础版深拷贝。
+        //    （本工程的 bool 是 typedef long long，没有 true/false 常量。）
+        if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, 1) != 0)
         {
             return -E_NO_MEM;
         }
     }
+    return 0;
+}
+
+//lab5 function3 2413921: do_cow_pgfault — 处理用户地址空间的写时复制缺页。
+// 返回 0 表示缺页已处理，可以重新执行触发缺页的指令；
+// 返回负值表示这不是一个可处理的 COW 缺页，交给原来的异常处理路径。
+int do_cow_pgfault(struct mm_struct *mm, uintptr_t addr)
+{
+    if (mm == NULL || mm->pgdir == NULL)
+    {
+        return -E_INVAL;
+    }
+    // 1. 地址必须落在用户地址空间内，且确实属于某个 vma。
+    if (!USER_ACCESS(addr, addr + 1))
+    {
+        return -E_INVAL;
+    }
+    struct vma_struct *vma = find_vma(mm, addr);
+    // 2. vma 必须允许写。只读区收到写请求说明是用户程序越权，
+    //    不能因为页是可共享页就顺手给一份可写副本。
+    if (vma == NULL || !(vma->vm_flags & VM_WRITE))
+    {
+        return -E_INVAL;
+    }
+
+    uintptr_t la = ROUNDDOWN(addr, PGSIZE);
+    pte_t *ptep = get_pte(mm->pgdir, la, 0);
+    // 3. 页必须已经存在并且带 COW 标记，否则不是本函数该处理的缺页。
+    if (ptep == NULL || !(*ptep & PTE_V) || !(*ptep & PTE_COW))
+    {
+        return -E_INVAL;
+    }
+    if (*ptep & PTE_W)
+    {
+        // 已经可写还缺页，说明缺页另有原因，不能在这里吞掉。
+        return -E_INVAL;
+    }
+
+    struct Page *page = pte2page(*ptep);
+
+    // 4. 只剩自己引用：共享对象已经不存在，直接恢复写权限，不必复制。
+    if (page_ref(page) == 1)
+    {
+        // 补上 R 位：RISC-V 要求 W=1 时 R 必须为 1，避免出现 X|W 的非法组合。
+        *ptep = (*ptep | PTE_R | PTE_W) & ~(PTE_COW | PTE_D);
+        tlb_invalidate(mm->pgdir, la);
+        ++pgfault_num;
+        return 0;
+    }
+    if (page_ref(page) <= 0)
+    {
+        return -E_INVAL;
+    }
+
+    // 5. 仍有其他进程共享：复制一份私有页，替换当前进程的映射。
+    struct Page *npage = alloc_page();
+    if (npage == NULL)
+    {
+        return -E_NO_MEM;
+    }
+    memcpy(page2kva(npage), page2kva(page), PGSIZE);
+
+    // 保留用户位与可执行位，恢复写权限并清掉 COW 标记；
+    // page_insert 会摘掉旧映射，从而把共享页的引用计数减 1。
+    uint32_t perm = (*ptep & (PTE_U | PTE_X)) | PTE_R | PTE_W;
+    if (page_insert(mm->pgdir, npage, la, perm) != 0)
+    {
+        free_page(npage);
+        return -E_NO_MEM;
+    }
+    ++pgfault_num;
     return 0;
 }
 
