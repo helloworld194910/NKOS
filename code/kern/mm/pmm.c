@@ -5,6 +5,8 @@
 #include <memlayout.h>
 #include <mmu.h>
 #include <pmm.h>
+#include <proc.h>
+#include <vmm.h>
 #include <sbi.h>
 #include <dtb.h>
 #include <stdio.h>
@@ -678,4 +680,30 @@ static int get_pgtable_items(size_t left, size_t right, size_t start,
         return perm;
     }
     return 0;
+}
+
+//lab5 function1 2412790: show the present 4 KiB mappings of the current user VMAs.
+void
+print_pgdir(void)
+{
+    if (current == NULL || current->mm == NULL || current->mm->pgdir == NULL)
+    {
+        return;
+    }
+    struct mm_struct *mm = current->mm;
+    list_entry_t *head = &mm->mmap_list;
+    for (list_entry_t *le = list_next(head); le != head; le = list_next(le))
+    {
+        struct vma_struct *vma = le2vma(le, list_link);
+        uintptr_t start = ROUNDDOWN(vma->vm_start, PGSIZE);
+        for (uintptr_t va = start; va < vma->vm_end; va += PGSIZE)
+        {
+            pte_t *pte = get_pte(mm->pgdir, va, 0);
+            if (pte != NULL && (*pte & (PTE_V | PTE_U)) == (PTE_V | PTE_U))
+            {
+                cprintf("  %p %c%c%c\n", (void *)va, (*pte & PTE_R) ? 'r' : '-',
+                        (*pte & PTE_W) ? 'w' : '-', (*pte & PTE_X) ? 'x' : '-');
+            }
+        }
+    }
 }

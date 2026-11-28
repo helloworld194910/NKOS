@@ -13,6 +13,7 @@
 #include <syscall.h>
 #include <error.h>
 #include <sched.h>
+#include <proc.h>
 #include <sync.h>
 #include <sbi.h>
 
@@ -106,6 +107,9 @@ void interrupt_handler(struct trapframe *tf) {
     case IRQ_S_TIMER:
         clock_set_next_event();
         ++ticks;
+        if (current != NULL) {
+            current->need_resched = 1;
+        }
         if (ticks % TICK_NUM == 0) {
             print_ticks();
         }
@@ -129,14 +133,18 @@ static int exception_inst_length(uintptr_t epc) {
     return 0; /* >= 48 位指令：本实验不支持 */
 }
 
-//lab5 function1 YOUR CODE update exception_handler
-
+//lab5 function1 2412790: user system-call entry and fault handling.
 void exception_handler(struct trapframe *tf) {
-    /* 保留触发位置供诊断和长度判断使用；tf->epc 表示最终返回位置。 */
-    // 迁移阶段只保留 Lab3 的内核异常处理。用户异常随后由 Lab5 模块一接入。
     if (!trap_in_kernel(tf)) {
+        if (tf->cause == CAUSE_USER_ECALL) {
+            /* fork copies this frame; its child must also resume after ecall. */
+            tf->epc += 4;
+            syscall();
+            return;
+        }
         print_trapframe(tf);
-        panic("Lab5 user exception handling has not been integrated");
+        do_exit(-E_KILLED);
+        return;
     }
     uintptr_t epc = tf->epc;
     int len;

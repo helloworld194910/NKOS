@@ -27,6 +27,7 @@ void __noreturn exit(int error_code);
 int fork(void);
 int wait(void);
 int waitpid(int pid, int *store);
+int exec(const char *name, size_t len, const unsigned char *binary, size_t size);
 void yield(void);
 int kill(int pid);
 int getpid(void);
