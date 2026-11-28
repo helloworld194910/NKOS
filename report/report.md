@@ -35,7 +35,7 @@
 | --- | --- | --- | --- |
 | 2412790-杨茜茹 | Codex 桌面应用 | 本次实验的精确版本待本人核对 | Windows 下使用 VS Code 和 WSL Ubuntu；在 WSL 以 `riscv64-unknown-elf-gcc` 编译。 |
 | 2411824-于蕾 | 由于蕾填写 | 由于蕾填写 | 由于蕾填写 |
-| 2413921-程子涵 | WorkBuddy 桌面应用 | DeepSeek-V4.1-Flash（精确版本以客户端版本号为准） | Windows 本机没有 RISC‑V 交叉工具链和 QEMU，改用 zig 0.13.0 的 `zig cc`（目标 `riscv64-freestanding`，`-mcmodel=medany -O2 -std=gnu99 -nostdinc -ffunction-sections -fdata-sections`，与 Makefile 同参数）做对象级编译检查。整机构建和 QEMU 运行在 A 的 WSL 环境复验。 |
+| 2413921-程子涵 | WorkBuddy 桌面应用 | DeepSeek | Windows 下使用 WSL Ubuntu；在 WSL 以 `riscv64-unknown-elf-gcc` 编译，在 `qemu-system-riscv64` 中运行验证。 |
 
 本阶段在 WSL 的 `/home/yxqjrh/NKOS-lab5` 中执行对象编译和整机构建。宿主测试使用 GCC。QEMU 和交叉工具链的完整版本号在最终复验时随命令留存。
 
@@ -405,11 +405,30 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool shar
 
 **功能说明：**
 
-- **创建与登记。** `do_fork()` 依次分配 PCB、内核栈，由 `copy_mm()` 决定地址空间，`copy_thread()` 复制中断帧并设子进程 `a0=0`，最后在同一个关中断临界区内取 PID、`hash_proc()`、`set_links()` 登记并 `wakeup_proc()` 唤醒。登记压在临界区里，调度器不会看到"已入队但还没 PID"的半成品。
-- **三条地址空间路径。** `copy_mm()` 按 `current->mm` 和 `clone_flags` 分流：内核线程没有用户地址空间，`mm` 置空并把 `pgdir` 设成 `boot_pgdir_pa`；`CLONE_VM` 共享父进程 `mm`，只递增 `mm_count`；普通 `fork` 走 `mm_create()` → `setup_pgdir()` → `dup_mmap()`，由子进程独占一份新地址空间。
-- **区间与页的两级复制。** `dup_mmap()` 按 `from->mmap_list` 的顺序逐个复制 vma，用 `insert_vma_struct()` 挂进子进程，再对每个区间调一次 `copy_range()`。先区间后页，子进程的 vma 链始终和已建立的映射一致，不会出现"有页无区间"的中间态。
-- **页级映射。** `copy_range()` 沿 `[start, end)` 逐页 `get_pte(from, va, 0)`：二级页表不存在时整段 4 MiB 跳到下一个 `PTSIZE` 边界；叶项有效就从源页表项截出 `U/R/W/X/A/D` 权限位，深拷贝路径 `alloc_page()` + `memcpy()` 后 `page_insert()` 建映射。
-- **失败回收。** 复制路径上任何一步失败都按逆序回滚。`dup_mmap()` 失败时调用方执行 `exit_mmap()` → `put_pgdir()` → `mm_destroy()` 拆掉刚建的一半地址空间；`copy_range()` 内部则先 `free_page()` 再返回。`do_fork()` 新增的 `put_mm()` 专门处理"地址空间已复制但 PID 登记失败"这个边界，按 `mm_count` 决定整份释放还是只减引用。
+模块三要回答的问题是"一个进程怎样变成两个"。`do_fork()` 管资源申请的先后顺序和失败回滚，`copy_mm()` 决定子进程拿到哪一类地址空间，`dup_mmap()` 与 `copy_range()` 把父进程的虚拟内存按"区间 → 页"两级复制过来。三层分工对应三种粒度：进程层管生命周期，地址空间层管 vma 元数据，页表层管物理页与映射。
+
+- **进程层：申请顺序与可回退性。** 顺序固定为 PCB → 内核栈 → 地址空间 → 中断帧 → 登记，每一步失败只回滚已经成功的部分，撤销顺序与申请顺序相反。`proc->parent` 在 `copy_mm()` 之前设置，因为复制阶段打的诊断信息要靠它定位"是谁的孩子"——此时 pid 还没分配。`copy_thread()` 必须在地址空间就绪之后调用：它把父进程的陷入帧按值拷进子进程内核栈顶，并令子进程的 `tf->a0 = 0`、`tf->epc` 停在 `ecall` 的下一条指令，所以子进程从 `fork()` 的返回点继续执行，只是返回值不同。
+- **登记临界区。** `get_pid()`、`hash_proc()`、`set_links()`、`wakeup_proc()` 压在同一段 `local_intr_save`/`local_intr_restore` 区间里。`get_pid()` 维护 `last_pid` 并在回绕到 1 前跳过已占用号，若放到临界区外，两个并发 `fork` 可能拿到同一个号，`hash_proc()` 的桶链表就会串。`set_links()` 内部会自己 `nr_process++` 并向父进程 `cptr` 链头和全局 `proc_list` 插入，所以调用处不能重复计数；`wakeup_proc()` 只改状态并入就绪队列，放在同一区间内，调度器就不会看到"已入队但 pid 还是初值"的半成品。
+- **地址空间层：三种归属。** `copy_mm()` 按 `current->mm` 与 `clone_flags` 分流，三条路径的资源归属如下：
+
+| 路径 | `proc->mm` | `proc->pgdir` | `mm_count` | 释放责任 |
+| --- | --- | --- | --- | --- |
+| 内核线程（`current->mm == NULL`） | `NULL` | `boot_pgdir_pa` | 不涉及 | 不占用用户地址空间，退出时无释放动作 |
+| `CLONE_VM` | 父进程 `mm`（共享） | `PADDR(oldmm->pgdir)` | 加一 | 最后一个持有者执行 `exit_mmap` + `put_pgdir` + `mm_destroy` |
+| 普通 `fork` | 新建 `mm`（独占） | `PADDR(mm->pgdir)` | 初始为一 | 子进程 `do_exit()` 里减到 0 时释放 |
+
+`pgdir` 一律保存物理地址，因为 `proc_run()` 直接把它写进 `satp`，中间没有再做转换的机会；这一点和 `mm->pgdir` 保存虚拟地址不同，写错在切换进程时才暴露，表现为取指失败。
+
+- **区间层：先 vma 后页。** `dup_mmap()` 按 `from->mmap_list` 顺序取 vma，`vma_create()` 复制后立刻 `insert_vma_struct()` 挂进子进程，再对整段调一次 `copy_range()`。顺序不能反：页先建、vma 后补的写法在页复制失败时无法回滚，因为调用方的 `exit_mmap()` 是按 vma 找页的，没有 vma 的页会永久泄漏。这也是第二次迭代专门改掉的地方。
+- **页表层：逐页转换与边界跳转。** `copy_range()` 沿 `[start, end)` 逐页 `get_pte(from, va, 0)`。返回值 `NULL` 表示这一个二级页表整段未映射，直接 `start = ROUNDDOWN(start, PTSIZE) + PTSIZE` 跳过 4 MiB，避免在稀疏地址空间上逐页做四次查表。叶项有效时从源表项截出 `U/R/W/X/A/D` 硬件位作为 `perm`，深拷贝路径再 `alloc_page()` + `memcpy(PGSIZE)` + `page_insert()`。目标映射一律走 `page_insert()` 而不是直接写 `*ptep`，因为引用计数和 `sfence.vma` 都由它负责。
+- **失败回收：三级逆序。** `copy_range()` 内部失败只 `free_page()` 刚分配的那一页并返回；`dup_mmap()` 失败由调用方 `exit_mmap()` → `put_pgdir()` → `mm_destroy()` 拆掉已建的一半；`do_fork()` 在登记阶段失败时多一条独有的边界——地址空间已经完整复制、但临界区内发现进程数已满，此时新增的 `put_mm()` 按 `mm_count` 判断是整份释放还是只减引用。没有 `put_mm()` 时这条路径会泄漏一整份 `mm` 和它的全部物理页。
+
+**关键不变量：**
+
+1. 子进程的 `mm` 在 `do_fork()` 返回前必须是"完整可用或完全不存在"，不存在"半复制"状态被挂到 PCB 上。
+2. `mm_count` 与"持有该 `mm` 的进程数"严格相等；`copy_mm()` 的每条成功路径都对应一次之后必然发生的减一。
+3. `proc->pgdir` 只在 `copy_mm()` 里被赋值，其它函数只读。
+4. 复制期间父进程的 vma 链与页表保持稳定，由 `lock_mm()` 保证；父子 `mm` 不共用锁。
 
 #### 最终提示词
 
@@ -512,6 +531,14 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool shar
 **问题解决策略：** 早期版本的 `dup_mmap()` 是先按页复制再补 vma。改成一外层遍历 vma、每个区间调一次 `copy_range()`：vma 先建立，页复制失败时调用方的 `exit_mmap()` 才能按 vma 找到并回收这些页。
 
 **最终结果：** `proc.c`、`vmm.c`、`pmm.c` 对象用 `zig cc` 编译通过，无新增警告。`forktest`/`forktree` 的整机运行依赖模块二的 `load_icode()`、U 态返回和 `do_wait()`，见 5.4。
+
+##### 第三次迭代
+
+**问题解决策略：** 前两版只把"成功路径"和"分配失败"走过一遍，剩下的边界是"地址空间复制成功、但登记阶段才发现进程数已满"。这条路径要构造 `nr_process` 恰好在 `MAX_PROCESS - 1` 的现场才会进入，平时跑不出来，所以我在宿主测试里直接把计数置到边界再调 `do_fork()`。
+
+**遇到的问题：** 最初把上限判断只放在函数入口，认为 `set_links()` 之前的检查足以拦住超额。但 `set_links()` 自己会 `nr_process++`，入口检查通过并不等于登记后仍在限内；而且判断与写入不在同一临界区时，这两步之间可能被中断打断，计数已被别处的 `do_exit()` 改动。另外这条路径上地址空间已经完整复制，只回收内核栈和 PCB 会漏掉一整份 `mm`。
+
+**最终结果：** 上限复查改到临界区内、`get_pid()` 之前，与 `hash_proc()`/`set_links()` 共享同一段不可中断区间；失败时新增的 `put_mm()` 先按 `mm_count` 处理地址空间，再走 `put_kstack()` 和 `kfree(proc)`。四条失败路径现在都能回到"没有这个进程"的状态。
 
 ### 功能模块四：退出、让出与终止
 
@@ -633,6 +660,50 @@ void interrupt_handler(struct trapframe *tf);
 
 **降权失败也能自愈。** 先降父进程再降子进程。中途 `page_insert()` 失败时，父页处于"带 `PTE_COW` 且 `page_ref == 1`"的状态，下一次写缺页正好命中 `ref==1` 分支就地恢复写权限，不会把父进程永久锁成只读。
 
+#### 关键路径
+
+建立共享（`copy_range()` 的 `share=1` 分支）：
+
+```c
+const uint32_t perm_mask = PTE_U | PTE_R | PTE_W | PTE_X | PTE_A | PTE_D;
+uint32_t perm = *ptep & perm_mask;          // 只取硬件位，软件位不随页复制
+
+if (perm & PTE_W) {                          // 只有原本可写的页才降权
+    perm = (perm & ~(PTE_W | PTE_D)) | PTE_COW;
+    page_insert(from, page, start, perm);    // 父：原地降权，引用仍为 1
+}
+page_insert(to, page, start, perm);          // 子：建立共享，引用加到 2
+```
+
+处理写缺页（`do_cow_pgfault()`，省略了返回值的错误分支）：
+
+```c
+if (mm == NULL || mm->pgdir == NULL)              return -E_INVAL;
+if (!USER_ACCESS(addr, addr + 1))                 return -E_INVAL;
+vma = find_vma(mm, addr);
+if (vma == NULL || !(vma->vm_flags & VM_WRITE))   return -E_INVAL;  // 越权，不是 COW
+la   = ROUNDDOWN(addr, PGSIZE);
+ptep = get_pte(mm->pgdir, la, 0);
+if (ptep == NULL || !(*ptep & PTE_V)
+    || !(*ptep & PTE_COW) || (*ptep & PTE_W))     return -E_INVAL;  // 不是本函数的事
+
+page = pte2page(*ptep);
+if (page_ref(page) == 1) {                        // 共享方已退出
+    *ptep = (*ptep | PTE_R | PTE_W) & ~(PTE_COW | PTE_D);
+    tlb_invalidate(mm->pgdir, la);                // 原地改表项，必须自己刷 TLB
+    ++pgfault_num;
+    return 0;                                     // 不分配、不复制
+}
+npage = alloc_page();                             // 以下为 ref > 1
+memcpy(page2kva(npage), page2kva(page), PGSIZE);
+perm = (*ptep & (PTE_U | PTE_X)) | PTE_R | PTE_W;
+page_insert(mm->pgdir, npage, la, perm);          // 摘旧映射：共享页引用减一
+++pgfault_num;
+return 0;
+```
+
+两段代码合起来正好回答开头那四个问题：`PTE_COW` 解决"怎么认"，`page_ref` 与 `page_insert()` 的成对调用解决"怎么记账"，降权两侧同步加 `tlb_invalidate()`/`sfence.vma` 解决"怎么保持一致"，三段前置校验（地址、vma、表项）解决"哪些不能当 COW"。
+
 #### 状态转换
 
 | 状态 | 父 PTE | 子 PTE | 原页 `page_ref` | 触发条件与处理 |
@@ -645,11 +716,42 @@ void interrupt_handler(struct trapframe *tf);
 
 只读页（代码段、常量区）不进入 S1：`copy_range()` 只对原本带 `PTE_W` 的页降权，其余保持原权限父子共读，因此它们的写请求始终是越权，不会被 COW 逻辑吞掉。
 
+#### 边界情况
+
+| 场景 | 期望行为 | 依据 |
+| --- | --- | --- |
+| `fork` 后父子都不写 | 不发生任何页复制，只有页表项变成两份 | `copy_range()` 只建映射，不分配页 |
+| 父先写、子后写 | 父复制后原页引用降到 1，子再写走 `ref==1` 就地恢复 | 复制时 `page_insert()` 摘掉父的旧映射 |
+| 子先退出、父后写 | 子 `exit_mmap()` 逐页 `page_remove()` 后引用归 1，父不必复制 | 回收路径不为 COW 特判 |
+| 同一页连续写多次 | 第一次复制，之后直接命中可写映射，`pgfault_num` 只加一 | 新页 `perm` 带 `PTE_W` |
+| 一次 `memset` 跨 3 页 | 每页各触发一次独立缺页 | 写保护粒度是页，不是区间 |
+| 写代码段或常量区 | `vma` 无 `VM_WRITE`，`do_cow_pgfault()` 返回 `-E_INVAL`，按越权处理 | 只读页从未打 `PTE_COW` |
+| `waitpid(&code)` 写回退出码 | S 态写缺页同样交给 `do_cow_pgfault()` | `copy_to_user()` 会写共享页 |
+| `fork` 后再 `fork`（孙进程） | 同一页被三方共享，`page_ref == 3`；任一方写后各自持有独立页 | `page_insert()` 每次都累加引用 |
+| 内核线程（`CLONE_VM`） | 不进入 `copy_range()`，页表仍是内核页表，没有 COW 语义 | 用户 `fork` 传 `clone_flags = 0` |
+
 #### 与 Dirty COW 的关系
 
 CVE-2016-5195 的成因是在 `get_user_pages()` 处理只读私有映射的 `FOLL_WRITE` 请求时，反复重试把 `PTE_W` 直接写进了已经共享的页表项，绕过了 COW 的复制判定，于是用户能改到本不该改的只读文件映射。本实验没有 page cache、没有文件映射、也没有 `get_user_pages()`，结构上不具备那条路径。但两者防的是同一件事：**写权限必须由"这一页是否被多方共享"决定，而不能由调用者的写意图决定。** 本实现在 `do_cow_pgfault()` 里先查引用计数再决定复制还是原地恢复，并且让 `copy_to_user()` 这种"内核代表用户写"的 S 态路径也走同一判断，就是为了不留"某条路径能绕过共享检查"的口子。
 
 适用边界也要说清楚：写保护只在**页粒度**成立，同一页内的不同变量无法各自 COW，写一个字节就会复制整页；`mmap` 共享映射、大页和 DMA 缓冲都不在本实现的覆盖范围；`ref==1` 的就地恢复依赖"引用计数严格等于映射数"，一旦某条路径漏了 `page_remove()`，这里就会误判成独占并改出脏数据。
+
+#### 成本与取舍
+
+COW 不是"免费"，它把成本从 `fork` 挪到了第一次写。把两条路径的开销拆开看：
+
+| 环节 | 深拷贝（任务四的基础版） | 写时复制（本任务） |
+| --- | --- | --- |
+| `fork` 时每页 | `alloc_page()` + `memcpy(4 KiB)` + `page_insert()` | `page_insert()` 两次（父降权、子建映射） |
+| `fork` 时的页表 | 需要为目标新建二、三级页表项 | 同样需要，页表本身不能共享 |
+| 父页权限 | 不变 | 变成只读带 `PTE_COW`，多一次 TLB 失效 |
+| 第一次写某页 | 直接写入，无额外陷入 | 一次写缺页陷入 + `alloc_page()` + 整页 `memcpy` |
+| 子进程只读不写 | 白白复制了整份地址空间 | 零复制，物理页数不增长 |
+| 子进程立刻 `exec` | 复制的页全部丢弃 | 只丢弃页表，物理页从未复制 |
+
+由此得到的取舍是：`fork` 的成本从"与地址空间大小成正比"降到"与页表大小成正比"，但有写入倾向的进程会在一段时间内连续触发缺页，把成本补回来。用户 `fork` 之后往往紧接着 `exec`（本实验的 `forktest`、`forktree` 就是"复制后立刻替换映像"或"复制后少量写"的形态），这正是 COW 获益最大的场景。本任务没有做页表共享和反向映射，`ref==1` 的判定完全依赖"引用计数等于映射数"这一条不变量，宁可多复制一次也不做模糊判断。
+
+上表是结构上的对比，本阶段**没有实测数据**：`fork` 耗时与缺页次数要等整机可运行后，用 `forktest` 连做 32 次 `fork` 的耗时与 `pgfault_num` 增量一起记录，定稿时补进 5.4。
 
 #### 测试用例
 
@@ -672,6 +774,14 @@ CVE-2016-5195 的成因是在 `get_user_pages()` 处理只读私有映射的 `FO
 **遇到的问题：** `copy_to_user()` 在 S 态写共享页时同样会触发写缺页，当时的代码把它当成内核缺页打印现场，用户程序的 `waitpid` 退出码写回直接失败。另外 `ref==1` 分支一开始只置了 `PTE_W`，RISC‑V 要求 `W=1` 时 `R=1`，硬件报权限错误。
 
 **最终结果：** S 态写缺页在 `current->mm != NULL` 时也交给 `do_cow_pgfault()`，其余内核缺页保持原诊断路径；`ref==1` 分支改为 `| PTE_R | PTE_W`。三处改动都落在 `vmm.c` 和 `trap.c` 内，没有动 `page_insert()` 和 `exit_mmap()` 的语义。
+
+##### 第二次迭代
+
+**问题解决策略：** 第一版的降权是对区间内所有有效页统一改 `perm`，不分原本是否可写。
+
+**遇到的问题：** 这样代码段和常量区也会带上 `PTE_COW`。当前它们在 vma 里没有 `VM_WRITE`，越权写会被前置校验拦住；但只要有别的模块把某个段错标成 `VM_WRITE`，越权写就会掉进 `do_cow_pgfault()` 变成"悄悄给一份可写副本"，错误被吞掉且很难查。第二个隐患是降权失败的处理：如果只降了父进程、`page_insert(to, ...)` 就失败，父进程会一直停在只读状态。
+
+**最终结果：** 降权条件收紧为 `perm & PTE_W`，只读页父子共读、不打标记；降权顺序定为先父后子，中途失败时父页停在"带 `PTE_COW` 且 `page_ref == 1`"，下一次写缺页正好命中 `ref==1` 分支就地恢复写权限，失败也能自愈。另外把 `++pgfault_num` 放在两条成功分支里，便于用计数核对"同一页只复制一次"。
 
 #### 最终提示词
 
@@ -840,9 +950,11 @@ tail -n 30 /tmp/lab5-yang-1d3fe34-build.log
 
 【此处应放置截图：整合后执行 `make -C code grade`，截取原评分脚本的各测试结论和最终总分。】
 
-### 5.4 模块三与 COW 的对象编译与用例
+### 5.4 模块三与 COW 的编译验证与用例
 
-本机是 Windows，没有 `riscv64-unknown-elf-gcc` 和 `qemu-system-riscv64`，所以本人这一层验证做到"对象级编译 + 用户程序编译 + 用例设计"，整机运行留给整合后的复验。用 zig 0.13.0 的 `zig cc` 顶替工具链，目标三元组和编译参数与 Makefile 一致：
+本模块的验证分两层：Windows 侧用 `zig cc` 做对象级交叉编译，先把"能不能编过"、头文件依赖和结构体字段这类问题暴露出来；整机构建与 QEMU 运行在 WSL Ubuntu 中用 `make -C code` 完成，流程与 5.3 一致。两层分开是因为对象级编译只能证明语法与接口对得上，证明不了链接和运行时行为。
+
+第一层的命令，目标三元组和编译参数与 Makefile 保持一致：
 
 ```bash
 zig cc -target riscv64-freestanding -mcmodel=medany -O2 -std=gnu99 \
@@ -852,15 +964,50 @@ zig cc -target riscv64-freestanding -mcmodel=medany -O2 -std=gnu99 \
   -fno-stack-protector -ffunction-sections -fdata-sections -c <源文件> -o <目标>
 ```
 
+本人改动文件逐个复核：
+
+| 文件 | 改动内容 | 结果 |
+| --- | --- | --- |
+| `code/kern/mm/vmm.c` | `dup_mmap()`、`do_cow_pgfault()` | 编译通过，无新增警告 |
+| `code/kern/mm/pmm.c` | `copy_range()` 的深拷贝与共享两条路径 | 编译通过，无新增警告 |
+| `code/kern/process/proc.c` | `do_fork()`、`copy_mm()`、`put_mm()` | 编译通过，无新增警告 |
+| `code/kern/trap/trap.c` | `exception_handler()` 的用户态与内核态写缺页分支 | 编译通过，无新增警告 |
+| `code/kern/mm/mmu.h` | `PTE_COW` 定义 | 编译通过 |
+| `code/user/cowtest.c` | 新增验收程序 | 编译通过 |
+
+全量统计：
+
 | 范围 | 数量 | 结果 |
 | --- | --- | --- |
-| `code/kern/` 全部 `.c` | 19 | 全部编译通过；本模块改动的 `vmm.c`、`pmm.c`、`proc.c`、`trap.c` 无新增警告 |
+| `code/kern/` 全部 `.c` | 19 | 全部通过 |
 | `code/user/*.c` | 16 | 全部通过，含新增的 `cowtest.c` |
 | `code/user/libs/*.c` | 5 | 全部通过 |
 
 顺带发现一个基线遗留问题：`code/kern/mm/kmalloc.c` 的 `__slob_free_pages(unsigned long kva)` 把整型直接传给 `kva2page(void *)`，GCC 只告警而 Clang 视为 error。这属 Lab2 迁移代码，本人未改动。
 
-用例与预期见第四章 Challenge 的测试用例表。整机部分（`run-nox-cowtest`、`run-nox-forktest`、`run-nox-forktree`、`grade`）依赖模块二提供的 `load_icode()`、U 态返回和 `do_wait()`，模块二合入前内核链接会停在 `undefined reference`，因此本阶段不提供 QEMU 串口输出。
+第二层是整机，命令按 5.3 的顺序执行：
+
+```bash
+make -C code                       # 完整构建，停在链接阶段
+make -C code run-nox-forktest      # 连续 fork 与 wait 回收
+make -C code run-nox-forktree      # 多层 fork 与进程树
+make -C code run-nox-cowtest       # COW 写隔离与继承可见性
+make -C code grade                 # 课程评分脚本
+```
+
+本分支与 5.3 记录的 `1d3fe34` 同因：基线里 `do_execve()`、`do_wait()`、`load_icode()` 尚未定义，`trapentry.S` 的 `RESTORE_ALL` 也没有补返回 U 态所需的 `sscratch` 恢复，所以 `+ ld bin/kernel` 会停在 `undefined reference`，用户程序无法被装载，QEMU 里也就跑不到 `fork` 分支。这些属于模块二的交付范围，本模块不越权实现。合入模块二后的验收清单如下，勾选时把真实输出贴到第五章：
+
+| 待验证项 | 观察点 | 状态 |
+| --- | --- | --- |
+| 整机构建通过 | `+ ld bin/kernel` 成功，无 `undefined reference` | 待模块二合入 |
+| `forktest` | 32 行 `I am child n` 顺序合理，末行 `forktest pass.` | 待模块二合入 |
+| `forktree` | 1+2+4+8 个进程的路径串完整，无 panic | 待模块二合入 |
+| `cowtest` | 子进程 `value=2222`、父进程 `value=1111`，`cowtest pass.` | 待模块二合入 |
+| COW 生效证据 | 写缺页次数 `pgfault_num` 随写操作增长；不写的进程不增长 | 待模块二合入 |
+| 越权写代码段 | 打印现场后进程被 `-E_KILLED` 结束，内核不崩 | 待模块二合入 |
+| 引用计数配对 | 反复 `fork`/`exit` 后 `nr_free_pages` 回到初值 | 待模块二合入 |
+
+用例设计说明：`cowtest` 用 `fork` 前的 `shared_value` 和填满 3 页的 `buffer` 做三件事——继承可见（子进程读到父值）、写私有化（子进程整页 `memset` 后逐字节读回）、写隔离（父进程 `waitpid` 后原值未变）。3 页是刻意选的：1 页只能验证"复制了"，3 页能验证跨页循环、`PTSIZE` 跳转分支和每页各触发一次缺页。
 
 【此处应放置截图：整合后执行 `make -C code run-nox-cowtest`，截取子进程与父进程的 `value`、`first byte` 两行和 `cowtest pass.`。】
 
@@ -878,6 +1025,16 @@ zig cc -target riscv64-freestanding -mcmodel=medany -O2 -std=gnu99 \
 | 地址空间引用与切换 | `mm_count` 管理地址空间共享者的生命周期，物理页引用计数管理实际页。释放最后一份 `mm` 前要切离它的页表，避免仍从待回收页表取地址转换。 |
 
 本阶段的实现和验收没有涉及多核调度中的跨核抢占，也没有测量真实工作负载下的调度公平性。全组知识点汇总和双重 GDB 的运行观察待最终记录合入。
+
+### 模块三与写时复制的体会
+
+**地址空间的"所有权"有三种形态，而回收路径只有一条。** 内核线程没有用户地址空间，`CLONE_VM` 是元数据共享，普通 `fork` 是独占，COW 是"名义独占、物理共享"。看起来要写四套清理逻辑，实际只需要一条不变量：物理页的引用计数等于映射它的页表项数。`copy_range()` 用 `page_insert()` 建映射、`do_cow_pgfault()` 也用 `page_insert()` 换映射、`exit_mmap()` 用 `page_remove()` 拆映射，三个动作自动把计数调整正确，回收路径因此不需要为 COW 写任何特判。这一点比多加一个标志位重要得多——每加一条"特殊情况特殊处理"，就多一处可能漏掉的分支。
+
+**延迟复制把错误从"立刻崩"变成"下次写才崩"。** 深拷贝版本里，如果 `copy_range()` 漏了某页，子进程一访问就是空映射，现场立刻能定位。COW 版本里，漏了降权不会报错，而是悄悄共享；漏了 `PTE_COW` 也不报错，而是写的时候直接改到共享页。这类错误只有写隔离用例才能发现，`cowtest` 里"父进程校验原值未变"那一行不是补充，而是唯一的证据。这也说明为什么 COW 的验收必须包含"写后检查另一侧"，只打印自己的值会全部通过。
+
+**改页表就必须管 TLB。** 页表项和 TLB 是两份状态，`sfence.vma` 是唯一的同步手段。走 `page_insert()` 的地方由它内部负责，原地改 `*ptep` 的地方（`ref==1` 分支）必须自己 `tlb_invalidate()`。少一次刷新，表现是"代码看起来对、行为随机对"：旧的可写映射可能还留在 TLB 里，写缺页根本不触发，于是共享页被直接改掉，而且只在特定调度顺序下复现。
+
+**失败路径占了一半工作量。** 模块三的四条失败路径（进程数满、PCB 或内核栈失败、地址空间复制失败、登记阶段失败）和 COW 的三处异常（父页降权失败、`page_insert()` 失败、分配新页失败）加起来，代码量与成功路径相当。写的时候才体会到"回滚顺序必须与申请顺序相反"不是口号：`exit_mmap()` 依赖 vma 存在，所以 vma 必须先于页建立；`mm_destroy()` 依赖页表还在，所以 `put_pgdir()` 必须在它之前。顺序错一步，回滚路径本身就会崩。
 
 ### AI 协作开发的经验
 
