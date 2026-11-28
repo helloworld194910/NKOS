@@ -324,15 +324,62 @@ put_pgdir(struct mm_struct *mm)
     free_page(kva2page(mm->pgdir));
 }
 
-//lab5 function3 YOUR CODE update copy_mm
-
+//lab5 function3 2413921: copy_mm — 决定子进程共享还是复制父进程的用户地址空间。
 static int copy_mm(uint32_t clone_flags, struct proc_struct *proc)
 {
-    // Lab4 内核线程兼容路径。Lab5 用户地址空间复制由模块三接入。
-    if (current->mm != NULL) {
-        return -E_INVAL;
+    struct mm_struct *mm, *oldmm = current->mm;
+    int ret = 0;
+
+    // 路径一 内核线程：父子都没有用户地址空间，沿用内核页表 boot_pgdir_pa。
+    if (oldmm == NULL)
+    {
+        proc->mm = NULL;
+        proc->pgdir = boot_pgdir_pa;
+        return 0;
     }
-    proc->mm = NULL;
+
+    // 路径二 CLONE_VM：子线程与父进程共享同一个 mm，只增加引用计数。
+    // proc->pgdir 直接沿用父进程页表根，退出时由 mm_count 决定谁负责释放。
+    if (clone_flags & CLONE_VM)
+    {
+        mm_count_inc(oldmm);
+        proc->mm = oldmm;
+        proc->pgdir = PADDR(oldmm->pgdir);
+        return 0;
+    }
+
+    // 路径三 fork：新建 mm 与页表根，再按 vma 逐段复制用户地址空间。
+    if ((mm = mm_create()) == NULL)
+    {
+        return -E_NO_MEM;
+    }
+    // setup_pgdir 会复制内核高半区映射，使用户页表也能进入内核。
+    if ((ret = setup_pgdir(mm)) != 0)
+    {
+        mm_destroy(mm);
+        return ret;
+    }
+
+    lock_mm(oldmm);
+    {
+        ret = dup_mmap(mm, oldmm);
+    }
+    unlock_mm(oldmm);
+
+    if (ret != 0)
+    {
+        // 复制失败：本进程还没登记，直接拆掉刚建的一半地址空间。
+        exit_mmap(mm);
+        put_pgdir(mm);
+        mm_destroy(mm);
+        return ret;
+    }
+
+    // 新建的 mm 由本进程独占，初值 1 与 do_exit 中的 mm_count_dec 配对。
+    mm_count_inc(mm);
+    proc->mm = mm;
+    // satp 需要物理地址；mm->pgdir 是页表根的内核虚拟地址。
+    proc->pgdir = PADDR(mm->pgdir);
     return 0;
 }
 
@@ -443,10 +490,29 @@ void cpu_idle(void)
 }
 
 
-//lab5 function3 YOUR CODE
+//lab5 function3 2413921: 撤销 copy_mm 已建立的地址空间，供 do_fork 失败回滚使用。
+static void put_mm(struct proc_struct *proc)
+{
+    struct mm_struct *mm = proc->mm;
+    if (mm == NULL)
+    {
+        // 内核线程路径没有用户地址空间，无需回收。
+        return;
+    }
+    // 共享路径只减少引用；复制路径引用归零后由本次 fork 负责整份释放。
+    // 引用归零时 mm 一定不是 current->mm：共享时 current 自己还持有一份引用。
+    if (mm_count_dec(mm) == 0)
+    {
+        assert(mm != current->mm);
+        exit_mmap(mm);
+        put_pgdir(mm);
+        mm_destroy(mm);
+    }
+    proc->mm = NULL;
+    proc->pgdir = boot_pgdir_pa;
+}
 
-
-// 继承 Lab4 创建顺序，登记接入 Lab5 已有的进程树接口。
+//lab5 function3 2413921: do_fork — 创建、复制、登记并唤醒子进程。
 int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
 {
     int ret = -E_NO_FREE_PROC;
@@ -462,7 +528,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
         ret = -E_NO_MEM;
         goto fork_out;
     }
-    // 子线程的父线程就是当前线程
+    // 子进程的父进程就是当前进程
     proc->parent = current;
 
     // 2. 分配内核栈（KSTACKPAGE 个连续物理页）
@@ -472,17 +538,18 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
         goto bad_fork_cleanup_proc;
     }
 
-    // 3. 处理地址空间（本实验内核线程共享内核地址空间）
+    // 3. 处理地址空间：内核线程共享内核页表，fork 复制用户地址空间。
+    //    成功后 proc->pgdir 已指向子进程要用的页表根。
     ret = copy_mm(clone_flags, proc);
     if (ret != 0)
     {
         goto bad_fork_cleanup_kstack;
     }
 
-    // 4. 设置中断帧与上下文
+    // 4. 设置中断帧与上下文：子进程从 a0 = 0 返回，执行现场由 tf 复制而来。
     copy_thread(proc, stack, tf);
 
-    // 5. 在同一临界区内登记并唤醒已准备好的线程。
+    // 5. 在同一临界区内取 PID、登记并唤醒，保证调度器不会看到半个子进程。
     bool intr_flag;
     local_intr_save(intr_flag);
     {
@@ -502,12 +569,15 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
     local_intr_restore(intr_flag);
     if (ret < 0)
     {
-        goto bad_fork_cleanup_kstack;
+        // 已复制地址空间但没能登记：连地址空间一起回滚。
+        goto bad_fork_cleanup_mm;
     }
 
 fork_out:
     return ret;
 
+bad_fork_cleanup_mm:
+    put_mm(proc);
 bad_fork_cleanup_kstack:
     put_kstack(proc);
 bad_fork_cleanup_proc:

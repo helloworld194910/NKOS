@@ -424,7 +424,48 @@ void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end)
 }
 
 
-//lab5 function3 YOUR CODE 
+//lab5 function3 2413921: copy_range — 按页把 [start, end) 的映射复制到目标页表。
+// 只处理已经存在的叶子映射，源页表缺二级表时整段跳过。
+int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end, bool share)
+{
+    assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    assert(USER_ACCESS(start, end));
+
+    // 只沿用硬件可见的权限位；页表项中的软件位（如 COW 标记）不随页复制。
+    const uint32_t perm_mask = PTE_U | PTE_R | PTE_W | PTE_X | PTE_A | PTE_D;
+
+    do
+    {
+        pte_t *ptep = get_pte(from, start, 0);
+        if (ptep == NULL)
+        {
+            // 这一段地址没有二级页表，对应的 4 MiB 全都没有映射。
+            start = ROUNDDOWN(start + PTSIZE, PTSIZE);
+            continue;
+        }
+        if (*ptep & PTE_V)
+        {
+            struct Page *page = pte2page(*ptep);
+            uint32_t perm = (*ptep & perm_mask);
+
+            // 基础版：分配新页并复制内容，父子各持有一份独立的物理页。
+            // 共享（COW）路径在 COW 提交中接入，届时父页也要同步降权。
+            struct Page *npage = alloc_page();
+            if (npage == NULL)
+            {
+                return -E_NO_MEM;
+            }
+            memcpy(page2kva(npage), page2kva(page), PGSIZE);
+            if (page_insert(to, npage, start, perm) != 0)
+            {
+                free_page(npage);
+                return -E_NO_MEM;
+            }
+        }
+        start += PGSIZE;
+    } while (start != 0 && start < end);
+    return 0;
+}
 
 
 //lab4 请补充你在lab4中的代码

@@ -202,7 +202,32 @@ out:
     return ret;
 }
 
-//lab5 function3 YOUR CODE 
+//lab5 function3 2413921: dup_mmap — 按 vma 粒度把父进程的用户地址空间复制到子进程。
+// to 必须是已经 setup_pgdir 过的空 mm；复制顺序与 vma 的地址顺序一致。
+int dup_mmap(struct mm_struct *to, struct mm_struct *from)
+{
+    assert(to != NULL && from != NULL);
+
+    list_entry_t *list = &(from->mmap_list), *le = list;
+    while ((le = list_next(le)) != list)
+    {
+        struct vma_struct *vma = le2vma(le, list_link);
+        // 1. 先复制 vma 本身，保持区间与权限一致，子进程的 mmap_list 才完整。
+        struct vma_struct *new_vma = vma_create(vma->vm_start, vma->vm_end, vma->vm_flags);
+        if (new_vma == NULL)
+        {
+            return -E_NO_MEM;
+        }
+        insert_vma_struct(to, new_vma);
+
+        // 2. 再按页复制实际映射。基础版逐页深拷贝，父子从此各写各的。
+        if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, false) != 0)
+        {
+            return -E_NO_MEM;
+        }
+    }
+    return 0;
+}
 
 
 
