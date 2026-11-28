@@ -89,6 +89,110 @@ size_t nr_free_pages(void)
 
 //lab2 请补充你在lab2中的代码
 
+// 沿用组内 Lab4 已验收的 Lab2 物理页初始化。
+static void page_init(void) {
+    extern char end[];
+
+    // 虚拟地址到物理地址的偏移量，必须与启动页表一致。
+    va_pa_offset = PHYSICAL_MEMORY_OFFSET;
+
+    uint64_t mem_base = get_memory_base();
+    uint64_t mem_size = get_memory_size();
+
+    cprintf("page_init: probed RAM base=0x%lx size=0x%lx\n",
+            (unsigned long)mem_base, (unsigned long)mem_size);
+
+    // 设备树信息无效时直接报错，不得使用写死的默认值继续初始化。
+    if (mem_base == 0) {
+        panic("page_init: device tree reports memory base 0");
+    }
+    if (mem_size == 0) {
+        panic("page_init: device tree reports memory size 0");
+    }
+    // 计算 RAM 末端前先检查加法溢出。
+    if (mem_base > ~(uint64_t)0 - mem_size) {
+        panic("page_init: memory base + size overflows");
+    }
+    uint64_t ram_end = mem_base + mem_size;
+
+    // 当前采用以固定 DRAM_BASE 为基准的单段 RAM 模型，不同起点直接拒绝。
+    if (mem_base != DRAM_BASE) {
+        panic("page_init: unsupported RAM base 0x%lx (expect 0x%lx)",
+              (unsigned long)mem_base, (unsigned long)DRAM_BASE);
+    }
+
+    // RAM 必须覆盖内核镜像的实际占用范围。
+    uintptr_t kernel_end_pa = PADDR((uintptr_t)end);
+    if (ram_end <= kernel_end_pa) {
+        panic("page_init: RAM does not cover the kernel image");
+    }
+
+    // 实际可管理末端：裁剪到 managed_limit，并向下按页对齐。
+    const uint64_t managed_limit = (uintptr_t)KERNTOP - va_pa_offset;
+    uint64_t managed_end = ram_end;
+    if (managed_end > managed_limit) {
+        cprintf("page_init: trim RAM end 0x%lx to managed_limit 0x%lx\n",
+                (unsigned long)ram_end, (unsigned long)managed_limit);
+        managed_end = managed_limit;
+    }
+    managed_end = ROUNDDOWN(managed_end, PGSIZE);
+
+    npage = PPN(managed_end);
+    if (npage <= nbase) {
+        panic("page_init: no manageable physical pages (npage <= nbase)");
+    }
+
+    // 描述符数组紧跟在按页对齐的内核末端之后。
+    pages = (struct Page *)ROUNDUP((uintptr_t)end, PGSIZE);
+    uintptr_t pages_pa = PADDR((uintptr_t)pages);
+
+    size_t descriptor_count = npage - nbase;
+    if (descriptor_count > ~(size_t)0 / sizeof(struct Page)) {
+        panic("page_init: descriptor array size overflows");
+    }
+    size_t descriptor_bytes = descriptor_count * sizeof(struct Page);
+
+    // 描述符数组必须完整落在实际 RAM 和可管理范围内。
+    if (pages_pa > managed_end) {
+        panic("page_init: descriptor array starts beyond managed memory");
+    }
+    if (descriptor_bytes > managed_end - pages_pa) {
+        panic("page_init: descriptor array does not fit in RAM");
+    }
+    uintptr_t descriptor_end_pa = pages_pa + descriptor_bytes;
+
+    // 确定性初始化全部描述符，初始状态统一为保留。
+    for (size_t i = 0; i < descriptor_count; i++) {
+        pages[i].ref = 0;
+        pages[i].flags = 0;
+        pages[i].property = 0;
+        list_init(&pages[i].page_link);
+        list_init(&pages[i].pra_page_link);
+        pages[i].pra_vaddr = 0;
+        SetPageReserved(&pages[i]);
+    }
+
+    // 初始空闲区：描述符数组末端按页对齐之后，到可管理末端。
+    uintptr_t free_begin = ROUNDUP(descriptor_end_pa, PGSIZE);
+    uintptr_t free_end = managed_end;
+
+    cprintf("page_init: npage=%lu nbase=%lu descriptors=%lu\n",
+            (unsigned long)npage, (unsigned long)nbase,
+            (unsigned long)descriptor_count);
+    cprintf("page_init: pages_va=0x%lx pages_pa=0x%lx descriptor_end_pa=0x%lx\n",
+            (unsigned long)(uintptr_t)pages, (unsigned long)pages_pa,
+            (unsigned long)descriptor_end_pa);
+    cprintf("page_init: free range [0x%lx, 0x%lx)\n",
+            (unsigned long)free_begin, (unsigned long)free_end);
+
+    if (free_begin < free_end) {
+        size_t free_pages_count = (free_end - free_begin) / PGSIZE;
+        cprintf("page_init: register %lu free pages\n",
+                (unsigned long)free_pages_count);
+        init_memmap(pa2page(free_begin), free_pages_count);
+    }
+}
+
 // boot_map_segment - setup&enable the paging mechanism
 // parameters
 //  la:   linear address of this memory need to map (after x86 segment map)
@@ -183,7 +287,7 @@ pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create)
         set_page_ref(page, 1);
         uintptr_t pa = page2pa(page);
         memset(KADDR(pa), 0, PGSIZE);
-        *pdep1 = pte_create(page2ppn(page), PTE_U | PTE_V);
+        *pdep1 = ptd_create(page2ppn(page));
     }
 
     pde_t *pdep0 = &((pde_t *)KADDR(PDE_ADDR(*pdep1)))[PDX0(la)];
@@ -197,7 +301,7 @@ pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create)
         set_page_ref(page, 1);
         uintptr_t pa = page2pa(page);
         memset(KADDR(pa), 0, PGSIZE);
-        *pdep0 = pte_create(page2ppn(page), PTE_U | PTE_V);
+        *pdep0 = ptd_create(page2ppn(page));
     }
     return &((pte_t *)KADDR(PDE_ADDR(*pdep0)))[PTX(la)];
 }
@@ -323,6 +427,56 @@ void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end)
 
 //lab4 请补充你在lab4中的代码
 
+// 保留映射引用计数、TLB 同步和部分分配失败的回滚。
+int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm)
+{
+    pde_t *root_entry = &pgdir[PDX1(la)];
+    pde_t old_root = *root_entry;
+    pte_t *ptep = get_pte(pgdir, la, 1);
+    if (ptep == NULL) {
+        // get_pte may allocate the first table before the second allocation
+        // fails. Only undo a table created by this call, never an old table.
+        if (!(old_root & PTE_V) && (*root_entry & PTE_V)) {
+            struct Page *table = pde2page(*root_entry);
+            *root_entry = old_root;
+            tlb_invalidate(pgdir, la);
+            set_page_ref(table, 0);
+            free_page(table);
+        }
+        return -E_NO_MEM;
+    }
+
+    // Acquire the new reference first: replacing a page with itself must
+    // not momentarily reduce its reference count to zero and free it.
+    page_ref_inc(page);
+    if (*ptep & PTE_V) {
+        struct Page *old_page = pte2page(*ptep);
+        if (old_page == page) {
+            page_ref_dec(page);
+        } else {
+            page_remove(pgdir, la);
+        }
+    }
+    *ptep = pte_create(page2ppn(page), perm | PTE_V);
+    tlb_invalidate(pgdir, la);
+    return 0;
+}
+
+void page_remove(pde_t *pgdir, uintptr_t la)
+{
+    pte_t *ptep = get_pte(pgdir, la, 0);
+    if (ptep == NULL || !(*ptep & PTE_V)) {
+        return;
+    }
+    struct Page *page = pte2page(*ptep);
+    *ptep = 0;
+    tlb_invalidate(pgdir, la);
+    if (page_ref_dec(page) == 0) {
+        free_page(page);
+    }
+    // Empty intermediate page tables remain owned by the address space.
+}
+
 
 // invalidate a TLB entry, but only if the page tables being
 // edited are the ones currently in use by the processor.
@@ -393,7 +547,10 @@ static void check_pgdir(void)
     assert((ptep = get_pte(boot_pgdir_va, PGSIZE, 0)) != NULL);
     assert(*ptep & PTE_U);
     assert(*ptep & PTE_W);
-    assert(boot_pgdir_va[0] & PTE_U);
+    pde_t root_entry = boot_pgdir_va[0];
+    pde_t middle_entry = ((pde_t *)KADDR(PDE_ADDR(root_entry)))[0];
+    assert((root_entry & (PTE_V | PTE_R | PTE_W | PTE_X | PTE_U | PTE_A | PTE_D)) == PTE_V);
+    assert((middle_entry & (PTE_V | PTE_R | PTE_W | PTE_X | PTE_U | PTE_A | PTE_D)) == PTE_V);
     assert(page_ref(p2) == 1);
 
     assert(page_insert(boot_pgdir_va, p1, PGSIZE, 0) == 0);
@@ -427,15 +584,16 @@ static void check_pgdir(void)
 static void check_boot_pgdir(void)
 {
     size_t nr_free_store;
-    pte_t *ptep;
-    int i;
-
     nr_free_store = nr_free_pages();
 
-    for (i = ROUNDDOWN(KERNBASE, PGSIZE); i < npage * PGSIZE; i += PGSIZE)
+    const uintptr_t root_offset_mask = (1UL << 30) - 1;
+    for (uintptr_t pa = DRAM_BASE; pa < npage * PGSIZE; pa += PGSIZE)
     {
-        assert((ptep = get_pte(boot_pgdir_va, (uintptr_t)KADDR(i), 0)) != NULL);
-        assert(PTE_ADDR(*ptep) == i);
+        uintptr_t va = (uintptr_t)KADDR(pa);
+        pte_t leaf = boot_pgdir_va[PDX1(va)];
+        assert((leaf & (PTE_V | PTE_R)) == (PTE_V | PTE_R));
+        assert((PTE_ADDR(leaf) & root_offset_mask) == 0);
+        assert(PTE_ADDR(leaf) + (va & root_offset_mask) == pa);
     }
 
     assert(boot_pgdir_va[0] == 0);
